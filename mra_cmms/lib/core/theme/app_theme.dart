@@ -27,6 +27,32 @@ class AppTheme {
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: scheme.surfaceTint,
+        centerTitle: false,
+        elevation: 0,
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(foregroundColor: scheme.primary),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        indicatorColor: scheme.secondaryContainer,
+        labelTextStyle: WidgetStatePropertyAll(TextStyle(color: scheme.onSurface)),
+        iconTheme: WidgetStatePropertyAll(IconThemeData(color: scheme.onSurfaceVariant)),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: scheme.surfaceContainerHighest,
+        selectedColor: scheme.secondaryContainer,
+        labelStyle: TextStyle(color: scheme.onSurface),
+      ),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     );
   }
 
@@ -54,6 +80,32 @@ class AppTheme {
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: scheme.surfaceTint,
+        centerTitle: false,
+        elevation: 0,
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(foregroundColor: scheme.primary),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        indicatorColor: scheme.secondaryContainer,
+        labelTextStyle: WidgetStatePropertyAll(TextStyle(color: scheme.onSurface)),
+        iconTheme: WidgetStatePropertyAll(IconThemeData(color: scheme.onSurfaceVariant)),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: scheme.surfaceContainerHighest,
+        selectedColor: scheme.secondaryContainer,
+        labelStyle: TextStyle(color: scheme.onSurface),
+      ),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     );
   }
 }

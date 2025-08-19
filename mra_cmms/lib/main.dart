@@ -8,7 +8,8 @@ import 'repositories/work_orders_repository.dart';
 import 'repositories/leaves_repository.dart';
 import 'models/work_order.dart';
 import 'models/leave.dart';
-import 'core/theme/app_theme.dart';
+import 'core/theme/theme.dart';
+import 'core/theme/util.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/widgets/app_text_field.dart';
 import 'core/widgets/app_button.dart';
@@ -38,10 +39,13 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    // Build text theme using Google Fonts util; change fonts as desired
+    final textTheme = createTextTheme(context, 'Inter', 'Inter');
+    final materialTheme = MaterialTheme(textTheme);
     return MaterialApp(
       title: 'MRA CMMS',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: materialTheme.light(),
+      darkTheme: materialTheme.dark(),
       themeMode: mode,
       routes: {
         '/': (_) => const AuthGate(),
@@ -305,37 +309,6 @@ class DashboardPage extends ConsumerWidget {
             ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: kpis.when(
-                data: (v) {
-                  return LayoutBuilder(
-                    builder: (context, c) {
-                      final w = c.maxWidth;
-                      final cross = w >= 920 ? 3 : w >= 600 ? 2 : 1;
-                      final cards = [
-                        KpiCard(label: 'Open', value: v['open'] ?? 0, icon: Icons.inbox_outlined, onTap: () => Navigator.pushNamed(context, '/orders')),
-                        KpiCard(label: 'In progress', value: v['in_progress'] ?? 0, icon: Icons.play_circle_outline, color: Colors.orange, onTap: () => Navigator.pushNamed(context, '/orders')),
-                        KpiCard(label: 'Overdue', value: v['overdue'] ?? 0, icon: Icons.warning_amber_outlined, color: Colors.red, onTap: () => Navigator.pushNamed(context, '/orders')),
-                      ];
-                      return GridView.count(
-                        crossAxisCount: cross,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 18 / 7,
-                        children: cards,
-                      );
-                    },
-                  );
-                },
-                loading: () => const LinearProgressIndicator(),
-                error: (e, st) => const SizedBox.shrink(),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
             child: SectionCard(
               title: "Today's orders",
               onSeeAll: () => Navigator.pushNamed(context, '/orders'),
@@ -348,7 +321,42 @@ class DashboardPage extends ConsumerWidget {
                       subtitle: Text('You are all caught up.'),
                     );
                   }
-                  final visible = items.take(5).toList();
+                  bool isSameDay(DateTime a, DateTime b) =>
+                      a.year == b.year && a.month == b.month && a.day == b.day;
+                  bool isToday(DateTime? d) {
+                    if (d == null) return false;
+                    final now = DateTime.now();
+                    final local = d.toLocal();
+                    return isSameDay(local, now);
+                  }
+                  DateTime? effectiveDate(wo) {
+                    final status = (wo.status ?? '').toLowerCase();
+                    final dueToday = isToday(wo.dueDate);
+                    final completed = status == 'completed' || status == 'done' || status == 'closed';
+                    final nextToday = completed && isToday(wo.nextScheduledDate);
+                    if (dueToday) return wo.dueDate?.toLocal();
+                    if (nextToday) return wo.nextScheduledDate?.toLocal();
+                    return null;
+                  }
+                  // Keep only orders that are due today, or if completed, whose next schedule is today
+                  final todayRelevant = items.where((wo) => effectiveDate(wo) != null).toList();
+                  // Sort by effective time ascending (earliest first)
+                  todayRelevant.sort((a, b) {
+                    final ad = effectiveDate(a);
+                    final bd = effectiveDate(b);
+                    if (ad == null && bd == null) return 0;
+                    if (ad == null) return 1;
+                    if (bd == null) return -1;
+                    return ad.compareTo(bd);
+                  });
+                  if (todayRelevant.isEmpty) {
+                    return const ListTile(
+                      leading: Icon(Icons.assignment_outlined),
+                      title: Text('No orders for today'),
+                      subtitle: Text('You are all caught up.'),
+                    );
+                  }
+                  final visible = todayRelevant.take(5).toList();
                   return ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -374,6 +382,58 @@ class DashboardPage extends ConsumerWidget {
                 },
                 loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
                 error: (e, st) => const ListTile(title: Text("Failed to load today's orders")),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: kpis.when(
+                data: (v) {
+                  final scheme = Theme.of(context).colorScheme;
+                  final cards = [
+                    KpiCard(
+                      label: 'Open',
+                      value: v['open'] ?? 0,
+                      icon: Icons.inbox_outlined,
+                      color: scheme.primary,
+                      onTap: () => Navigator.pushNamed(context, '/orders'),
+                    ),
+                    KpiCard(
+                      label: 'In progress',
+                      value: v['in_progress'] ?? 0,
+                      icon: Icons.play_circle_outline,
+                      color: scheme.tertiary,
+                      onTap: () => Navigator.pushNamed(context, '/orders'),
+                    ),
+                    KpiCard(
+                      label: 'Overdue',
+                      value: v['overdue'] ?? 0,
+                      icon: Icons.warning_amber_outlined,
+                      color: scheme.error,
+                      onTap: () => Navigator.pushNamed(context, '/orders'),
+                    ),
+                  ];
+                  final controller = PageController(viewportFraction: 0.85, keepPage: true);
+                  return SizedBox(
+                    height: 130,
+                    child: PageView.builder(
+                      controller: controller,
+                      physics: const PageScrollPhysics(),
+                      pageSnapping: true,
+                      padEnds: true, // edge padding for first/last cards
+                      itemCount: cards.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: EdgeInsets.only(right: index == cards.length - 1 ? 0 : 12),
+                          child: cards[index],
+                        );
+                      },
+                    ),
+                  );
+                },
+                loading: () => const LinearProgressIndicator(),
+                error: (e, st) => const SizedBox.shrink(),
               ),
             ),
           ),
@@ -478,6 +538,9 @@ class OrdersPage extends StatefulWidget {
 class _OrdersPageState extends State<OrdersPage> {
   final repo = WorkOrdersRepository();
   late Future<List<WorkOrder>> _future;
+  String _query = '';
+  String _sortKey = 'due'; // 'due' | 'priority' | 'status' | 'title'
+  bool _ascending = false; // latest first by default
 
   @override
   void initState() {
@@ -496,6 +559,135 @@ class _OrdersPageState extends State<OrdersPage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create Order coming soon')));
   }
 
+  void _openSearch() async {
+    final controller = TextEditingController(text: _query);
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            left: 16,
+            right: 16,
+            top: 12,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Search orders', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Title, status, or priority',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (v) => Navigator.pop(context, v.trim()),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, ''),
+                    child: const Text('Clear'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, controller.text.trim()),
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result != null) {
+      setState(() => _query = result);
+    }
+  }
+
+  void _openSort() async {
+    final picked = await showModalBottomSheet<(String, bool)>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        String tempKey = _sortKey;
+        bool tempAsc = _ascending;
+        return StatefulBuilder(
+          builder: (context, setLocal) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const ListTile(title: Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600))),
+                    RadioListTile<String>(
+                      value: 'due',
+                      groupValue: tempKey,
+                      title: const Text('Due date'),
+                      onChanged: (v) => setLocal(() => tempKey = v!),
+                    ),
+                    RadioListTile<String>(
+                      value: 'priority',
+                      groupValue: tempKey,
+                      title: const Text('Priority'),
+                      onChanged: (v) => setLocal(() => tempKey = v!),
+                    ),
+                    RadioListTile<String>(
+                      value: 'status',
+                      groupValue: tempKey,
+                      title: const Text('Status'),
+                      onChanged: (v) => setLocal(() => tempKey = v!),
+                    ),
+                    RadioListTile<String>(
+                      value: 'title',
+                      groupValue: tempKey,
+                      title: const Text('Title'),
+                      onChanged: (v) => setLocal(() => tempKey = v!),
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      value: tempAsc,
+                      title: const Text('Ascending'),
+                      onChanged: (v) => setLocal(() => tempAsc = v),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, (tempKey, tempAsc)),
+                          child: const Text('Apply'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _sortKey = picked.$1;
+        _ascending = picked.$2;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -503,9 +695,14 @@ class _OrdersPageState extends State<OrdersPage> {
         title: const Text('Orders'),
         actions: [
           IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => Navigator.pushNamed(context, '/profile'),
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onPressed: _openSearch,
+          ),
+          IconButton(
+            tooltip: 'Sort',
+            icon: const Icon(Icons.sort),
+            onPressed: _openSort,
           ),
         ],
       ),
@@ -517,7 +714,54 @@ class _OrdersPageState extends State<OrdersPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            final items = snapshot.data ?? [];
+            List<WorkOrder> items = List.of(snapshot.data ?? []);
+            // Filter by query
+            if (_query.isNotEmpty) {
+              final q = _query.toLowerCase();
+              items = items.where((wo) {
+                final t = (wo.title ?? '').toLowerCase();
+                final s = (wo.status ?? '').toLowerCase();
+                final p = (wo.priority ?? '').toLowerCase();
+                return t.contains(q) || s.contains(q) || p.contains(q);
+              }).toList();
+            }
+            // Sort
+            int priorityRank(String? p) {
+              switch ((p ?? '').toLowerCase()) {
+                case 'high':
+                  return 0;
+                case 'medium':
+                  return 1;
+                case 'low':
+                  return 2;
+                default:
+                  return 3;
+              }
+            }
+            int cmp(WorkOrder a, WorkOrder b) {
+              int res = 0;
+              switch (_sortKey) {
+                case 'priority':
+                  res = priorityRank(a.priority).compareTo(priorityRank(b.priority));
+                  break;
+                case 'status':
+                  res = (a.status ?? '').toLowerCase().compareTo((b.status ?? '').toLowerCase());
+                  break;
+                case 'title':
+                  res = (a.title ?? '').toLowerCase().compareTo((b.title ?? '').toLowerCase());
+                  break;
+                case 'due':
+                default:
+                  final ad = a.dueDate;
+                  final bd = b.dueDate;
+                  if (ad == null && bd == null) res = 0;
+                  else if (ad == null) res = 1; // nulls last
+                  else if (bd == null) res = -1;
+                  else res = ad.compareTo(bd);
+              }
+              return _ascending ? res : -res;
+            }
+            items.sort(cmp);
             if (items.isEmpty) {
               return EmptyState(
                 icon: Icons.assignment_outlined,
@@ -601,13 +845,7 @@ class _LeavesPageState extends State<LeavesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leaves'),
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => Navigator.pushNamed(context, '/profile'),
-          ),
-        ],
+        actions: const [],
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -617,7 +855,16 @@ class _LeavesPageState extends State<LeavesPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            final items = snapshot.data ?? [];
+            final items = List.of(snapshot.data ?? []);
+            // Sort by most recent start date first (latest on top)
+            items.sort((a, b) {
+              final ad = a.startDate;
+              final bd = b.startDate;
+              if (ad == null && bd == null) return 0;
+              if (ad == null) return 1; // nulls last
+              if (bd == null) return -1;
+              return bd.compareTo(ad); // descending
+            });
             if (items.isEmpty) {
               return EmptyState(
                 icon: Icons.beach_access_outlined,

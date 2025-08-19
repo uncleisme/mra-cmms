@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera & media permissions for image capture and gallery pick -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- For Android 13+ (API 33): read images from gallery -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- For Android <= 12: fallback external storage read permission -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
     <application
         android:label="mra_cmms"
         android:name="${applicationName}"

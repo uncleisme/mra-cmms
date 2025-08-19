@@ -88,4 +88,25 @@ class WorkOrdersRepository {
     }
     return {'open': open, 'in_progress': inProgress, 'overdue': overdue};
   }
+
+  Future<WorkOrder?> getById(String id) async {
+    // Try cache first
+    final cached = _box.get('byId:$id');
+    if (cached != null) {
+      try {
+        return WorkOrder.fromMap(Map<String, dynamic>.from(cached));
+      } catch (_) {}
+    }
+
+    final res = await _client
+        .from('work_orders')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+
+    if (res == null) return null;
+    final map = Map<String, dynamic>.from(res as Map);
+    await _box.put('byId:$id', map);
+    return WorkOrder.fromMap(map);
+  }
 }

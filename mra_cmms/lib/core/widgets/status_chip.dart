@@ -8,12 +8,24 @@ class StatusChip extends StatelessWidget {
     switch (label.toLowerCase()) {
       case 'done':
       case 'approved':
+      case 'completed':
+      case 'closed':
         return cs.primaryContainer;
       case 'active':
       case 'pending':
+      case 'in_progress':
+      case 'in progress':
+      case 'open':
+      case 'new':
+      case 'assigned':
+      case 'review':
         return cs.tertiaryContainer;
       case 'rejected':
       case 'cancelled':
+      case 'canceled':
+      case 'failed':
+      case 'error':
+      case 'overdue':
         return cs.errorContainer;
       default:
         return cs.secondaryContainer;
@@ -24,12 +36,24 @@ class StatusChip extends StatelessWidget {
     switch (label.toLowerCase()) {
       case 'done':
       case 'approved':
+      case 'completed':
+      case 'closed':
         return cs.onPrimaryContainer;
       case 'active':
       case 'pending':
+      case 'in_progress':
+      case 'in progress':
+      case 'open':
+      case 'new':
+      case 'assigned':
+      case 'review':
         return cs.onTertiaryContainer;
       case 'rejected':
       case 'cancelled':
+      case 'canceled':
+      case 'failed':
+      case 'error':
+      case 'overdue':
         return cs.onErrorContainer;
       default:
         return cs.onSecondaryContainer;
@@ -39,13 +63,17 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: _bg(cs),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: TextStyle(color: _fg(cs), fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: (tt.labelMedium ?? const TextStyle()).copyWith(color: _fg(cs), fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

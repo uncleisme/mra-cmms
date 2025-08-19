@@ -11,9 +11,11 @@ import 'models/leave.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/util.dart';
 import 'core/theme/theme_controller.dart';
+import 'core/theme/typography.dart';
 import 'core/widgets/app_text_field.dart';
 import 'core/widgets/app_button.dart';
 import 'core/widgets/status_chip.dart';
+import 'core/widgets/priority_chip.dart';
 import 'core/widgets/primary_nav.dart';
 import 'core/widgets/home_shell.dart';
 import 'core/widgets/empty_state.dart';
@@ -21,6 +23,7 @@ import 'features/profile/profile_page.dart';
 import 'features/dashboard/dashboard_providers.dart';
 import 'core/widgets/kpi_card.dart';
 import 'core/widgets/section_card.dart';
+import 'features/orders/work_order_details_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,8 +43,9 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
     // Build text theme using Google Fonts util; change fonts as desired
-    final textTheme = createTextTheme(context, 'Inter', 'Inter');
-    final materialTheme = MaterialTheme(textTheme);
+    final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
+    final appTextTheme = AppTypography.textTheme(baseTextTheme);
+    final materialTheme = MaterialTheme(appTextTheme);
     return MaterialApp(
       title: 'MRA CMMS',
       theme: materialTheme.light(),
@@ -232,7 +236,6 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(kpisProvider);
     final todaysOrders = ref.watch(todaysOrdersProvider);
-    final todaysLeaves = ref.watch(todaysLeavesProvider);
     final activities = ref.watch(recentActivitiesProvider);
     final profile = ref.watch(myProfileProvider);
 
@@ -309,79 +312,89 @@ class DashboardPage extends ConsumerWidget {
             ),
           ),
           SliverToBoxAdapter(
-            child: SectionCard(
-              title: "Today's orders",
-              onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-              child: todaysOrders.when(
-                data: (items) {
-                  if (items.isEmpty) {
-                    return const ListTile(
-                      leading: Icon(Icons.assignment_outlined),
-                      title: Text('No orders for today'),
-                      subtitle: Text('You are all caught up.'),
-                    );
-                  }
-                  bool isSameDay(DateTime a, DateTime b) =>
-                      a.year == b.year && a.month == b.month && a.day == b.day;
-                  bool isToday(DateTime? d) {
-                    if (d == null) return false;
-                    final now = DateTime.now();
-                    final local = d.toLocal();
-                    return isSameDay(local, now);
-                  }
-                  DateTime? effectiveDate(wo) {
-                    final status = (wo.status ?? '').toLowerCase();
-                    final dueToday = isToday(wo.dueDate);
-                    final completed = status == 'completed' || status == 'done' || status == 'closed';
-                    final nextToday = completed && isToday(wo.nextScheduledDate);
-                    if (dueToday) return wo.dueDate?.toLocal();
-                    if (nextToday) return wo.nextScheduledDate?.toLocal();
-                    return null;
-                  }
-                  // Keep only orders that are due today, or if completed, whose next schedule is today
-                  final todayRelevant = items.where((wo) => effectiveDate(wo) != null).toList();
-                  // Sort by effective time ascending (earliest first)
-                  todayRelevant.sort((a, b) {
-                    final ad = effectiveDate(a);
-                    final bd = effectiveDate(b);
-                    if (ad == null && bd == null) return 0;
-                    if (ad == null) return 1;
-                    if (bd == null) return -1;
-                    return ad.compareTo(bd);
-                  });
-                  if (todayRelevant.isEmpty) {
-                    return const ListTile(
-                      leading: Icon(Icons.assignment_outlined),
-                      title: Text('No orders for today'),
-                      subtitle: Text('You are all caught up.'),
-                    );
-                  }
-                  final visible = todayRelevant.take(5).toList();
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final wo = visible[i];
-                      return ListTile(
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.build_outlined),
-                        title: Text(wo.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), Text(wo.priority ?? '-')]),
-                        trailing: FilledButton.icon(
-                          onPressed: () {/* start action pending */},
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Start'),
+            child: todaysOrders.when(
+              data: (items) {
+                bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+                bool isToday(DateTime? d) {
+                  if (d == null) return false;
+                  final now = DateTime.now();
+                  final local = d.toLocal();
+                  return isSameDay(local, now);
+                }
+                DateTime? effectiveDate(wo) {
+                  final status = (wo.status ?? '').toLowerCase();
+                  final dueToday = isToday(wo.dueDate);
+                  final completed = status == 'completed' || status == 'done' || status == 'closed';
+                  final nextToday = completed && isToday(wo.nextScheduledDate);
+                  if (dueToday) return wo.dueDate?.toLocal();
+                  if (nextToday) return wo.nextScheduledDate?.toLocal();
+                  return null;
+                }
+                final todayRelevant = items.where((wo) => effectiveDate(wo) != null).toList();
+                todayRelevant.sort((a, b) {
+                  final ad = effectiveDate(a);
+                  final bd = effectiveDate(b);
+                  if (ad == null && bd == null) return 0;
+                  if (ad == null) return 1;
+                  if (bd == null) return -1;
+                  return ad.compareTo(bd);
+                });
+                final visible = todayRelevant.take(5).toList();
+                return SectionCard(
+                  title: "Today's orders",
+                  leadingIcon: Icons.event_available,
+                  filled: true,
+                  count: todayRelevant.length,
+                  onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                  child: (visible.isEmpty)
+                      ? const ListTile(
+                          leading: Icon(Icons.assignment_outlined),
+                          title: Text('No orders for today'),
+                          subtitle: Text('You are all caught up.'),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final wo = visible[i];
+                            return ListTile(
+                              dense: true,
+                              visualDensity: VisualDensity.compact,
+                              leading: const Icon(Icons.build_outlined),
+                              title: Text(wo.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), Text(wo.priority ?? '-')]),
+                              trailing: FilledButton.icon(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Start'),
+                              ),
+                              onTap: () => Navigator.pushNamed(context, '/orders'),
+                            );
+                          },
                         ),
-                        onTap: () => Navigator.pushNamed(context, '/orders'),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                error: (e, st) => const ListTile(title: Text("Failed to load today's orders")),
+                );
+              },
+              loading: () => SectionCard(
+                title: "Today's orders",
+                leadingIcon: Icons.event_available,
+                filled: true,
+                onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+              ),
+              error: (e, st) => SectionCard(
+                title: "Today's orders",
+                leadingIcon: Icons.event_available,
+                filled: true,
+                onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                child: const ListTile(title: Text("Failed to load today's orders")),
               ),
             ),
           ),
@@ -393,24 +406,35 @@ class DashboardPage extends ConsumerWidget {
                   final scheme = Theme.of(context).colorScheme;
                   final cards = [
                     KpiCard(
-                      label: 'Open',
-                      value: v['open'] ?? 0,
-                      icon: Icons.inbox_outlined,
+                      label: 'Active',
+                      value: v['active'] ?? 0,
+                      icon: Icons.bolt_outlined,
+                      illustrationIcon: Icons.bolt,
                       color: scheme.primary,
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                     KpiCard(
                       label: 'In progress',
                       value: v['in_progress'] ?? 0,
-                      icon: Icons.play_circle_outline,
+                      icon: Icons.autorenew,
+                      illustrationIcon: Icons.autorenew,
                       color: scheme.tertiary,
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                     KpiCard(
-                      label: 'Overdue',
-                      value: v['overdue'] ?? 0,
-                      icon: Icons.warning_amber_outlined,
-                      color: scheme.error,
+                      label: 'Review',
+                      value: v['review'] ?? 0,
+                      icon: Icons.fact_check_outlined,
+                      illustrationIcon: Icons.fact_check,
+                      color: scheme.secondary,
+                      onTap: () => Navigator.pushNamed(context, '/orders'),
+                    ),
+                    KpiCard(
+                      label: 'Done',
+                      value: v['done'] ?? 0,
+                      icon: Icons.task_alt,
+                      illustrationIcon: Icons.task_alt,
+                      color: scheme.primary,
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                   ];
@@ -424,8 +448,29 @@ class DashboardPage extends ConsumerWidget {
                       padEnds: true, // edge padding for first/last cards
                       itemCount: cards.length,
                       itemBuilder: (context, index) {
-                        return Padding(
-                          padding: EdgeInsets.only(right: index == cards.length - 1 ? 0 : 12),
+                        return AnimatedBuilder(
+                          animation: controller,
+                          builder: (context, child) {
+                            double value = 1.0;
+                            if (controller.position.haveDimensions) {
+                              final page = controller.page ?? controller.initialPage.toDouble();
+                              // Stronger hero: larger delta (0.20) and lower min scale (0.80)
+                              value = (1 - ((page - index).abs() * 0.20)).clamp(0.80, 1.0);
+                            }
+                            final lift = (1 - value) * 8; // slight vertical lift on focus
+                            final opacity = 0.6 + (value * 0.4); // side cards dim
+                            return Padding(
+                              padding: EdgeInsets.only(right: index == cards.length - 1 ? 0 : 12),
+                              child: Transform.translate(
+                                offset: Offset(0, lift * -1),
+                                child: Transform.scale(
+                                  scale: value,
+                                  alignment: Alignment.center,
+                                  child: Opacity(opacity: opacity, child: child),
+                                ),
+                              ),
+                            );
+                          },
                           child: cards[index],
                         );
                       },
@@ -440,9 +485,19 @@ class DashboardPage extends ConsumerWidget {
           SliverToBoxAdapter(
             child: SectionCard(
               title: "Today's leaves",
-              onSeeAll: () => Navigator.pushNamed(context, '/leaves'),
-              child: todaysLeaves.when(
-                data: (items) {
+              onSeeAll: () {
+                const fixedUid = '9022b441-6257-4d6b-ac9d-7461fa6db6dd';
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LeavesPage(userId: fixedUid)),
+                );
+              },
+              child: FutureBuilder<List<LeaveRequest>>(
+                future: LeavesRepository().getTodaysLeavesForUser('9022b441-6257-4d6b-ac9d-7461fa6db6dd'),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
+                  }
+                  final items = List<LeaveRequest>.of(snapshot.data ?? const []);
                   if (items.isEmpty) {
                     return const ListTile(
                       leading: Icon(Icons.beach_access_outlined),
@@ -475,13 +530,16 @@ class DashboardPage extends ConsumerWidget {
                             Text(range),
                           ],
                         ),
-                        onTap: () => Navigator.pushNamed(context, '/leaves'),
+                        onTap: () {
+                          const fixedUid = '9022b441-6257-4d6b-ac9d-7461fa6db6dd';
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const LeavesPage(userId: fixedUid)),
+                          );
+                        },
                       );
                     },
                   );
                 },
-                loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                error: (e, st) => const ListTile(title: Text("Failed to load today's leaves")),
               ),
             ),
           ),
@@ -783,7 +841,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     children: [
                       if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
                       const SizedBox(width: 8),
-                      Text(wo.priority ?? '-')
+                      PriorityChip(wo.priority),
                     ],
                   ),
                   trailing: Column(
@@ -794,6 +852,13 @@ class _OrdersPageState extends State<OrdersPage> {
                       Text(wo.dueDate?.toString().split(' ').first ?? ''),
                     ],
                   ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                      ),
+                    );
+                  },
                 );
               },
             );
@@ -813,7 +878,8 @@ class _OrdersPageState extends State<OrdersPage> {
 
 class LeavesPage extends StatefulWidget {
   final bool showNav;
-  const LeavesPage({super.key, this.showNav = true});
+  final String? userId;
+  const LeavesPage({super.key, this.showNav = true, this.userId});
 
   @override
   State<LeavesPage> createState() => _LeavesPageState();
@@ -822,16 +888,26 @@ class LeavesPage extends StatefulWidget {
 class _LeavesPageState extends State<LeavesPage> {
   final repo = LeavesRepository();
   late Future<List<LeaveRequest>> _future;
+  DateTime? _filterMonth; // month/year
+  String? _filterStatus; // approved, pending, rejected
 
   @override
   void initState() {
     super.initState();
-    _future = repo.getMyLeaves();
+    if (widget.userId != null && widget.userId!.isNotEmpty) {
+      _future = repo.getLeavesForUser(widget.userId!);
+    } else {
+      _future = repo.getMyLeaves();
+    }
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _future = repo.getMyLeaves();
+      if (widget.userId != null && widget.userId!.isNotEmpty) {
+        _future = repo.getLeavesForUser(widget.userId!);
+      } else {
+        _future = repo.getMyLeaves();
+      }
     });
     await _future;
   }
@@ -845,7 +921,132 @@ class _LeavesPageState extends State<LeavesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leaves'),
-        actions: const [],
+        actions: [
+          IconButton(
+            tooltip: 'Search / Filter',
+            icon: const Icon(Icons.search),
+            onPressed: () async {
+              await showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                builder: (context) {
+                  String? localStatus = _filterStatus;
+                  DateTime? localMonth = _filterMonth;
+                  int? localMonthNum = localMonth?.month;
+                  int localYear = (localMonth?.year) ?? DateTime.now().year;
+                  return StatefulBuilder(builder: (context, setLocal) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Filter leaves', style: TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String?>(
+                                  value: localStatus,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(labelText: 'Status'),
+                                  items: const [
+                                    DropdownMenuItem<String?>(value: null, child: Text('All')),
+                                    DropdownMenuItem<String?>(value: 'approved', child: Text('Approved')),
+                                    DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
+                                    DropdownMenuItem<String?>(value: 'rejected', child: Text('Rejected')),
+                                  ],
+                                  onChanged: (v) => setLocal(() => localStatus = v),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<int>(
+                                  value: localYear,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(labelText: 'Year'),
+                                  items: () {
+                                    final nowY = DateTime.now().year;
+                                    final years = List<int>.generate(7, (i) => nowY - 5 + i); // [now-5 .. now+1]
+                                    return years
+                                        .map((y) => DropdownMenuItem<int>(value: y, child: Text(y.toString())))
+                                        .toList();
+                                  }(),
+                                  onChanged: (v) => setLocal(() => localYear = v ?? DateTime.now().year),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<int?>(
+                                  value: localMonthNum,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(labelText: 'Month'),
+                                  items: <DropdownMenuItem<int?>>[
+                                    const DropdownMenuItem<int?>(value: null, child: Text('All')),
+                                    const DropdownMenuItem<int?>(value: 1, child: Text('January')),
+                                    const DropdownMenuItem<int?>(value: 2, child: Text('February')),
+                                    const DropdownMenuItem<int?>(value: 3, child: Text('March')),
+                                    const DropdownMenuItem<int?>(value: 4, child: Text('April')),
+                                    const DropdownMenuItem<int?>(value: 5, child: Text('May')),
+                                    const DropdownMenuItem<int?>(value: 6, child: Text('June')),
+                                    const DropdownMenuItem<int?>(value: 7, child: Text('July')),
+                                    const DropdownMenuItem<int?>(value: 8, child: Text('August')),
+                                    const DropdownMenuItem<int?>(value: 9, child: Text('September')),
+                                    const DropdownMenuItem<int?>(value: 10, child: Text('October')),
+                                    const DropdownMenuItem<int?>(value: 11, child: Text('November')),
+                                    const DropdownMenuItem<int?>(value: 12, child: Text('December')),
+                                  ],
+                                  onChanged: (v) => setLocal(() { localMonthNum = v; localMonth = v == null ? null : DateTime(localYear, v, 1); }),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _filterMonth = localMonthNum == null ? null : DateTime(localYear, localMonthNum!, 1);
+                                      _filterStatus = localStatus;
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Apply'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _filterMonth = null;
+                                    _filterStatus = null;
+                                  });
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('Reset'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    );
+                  });
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -855,7 +1056,19 @@ class _LeavesPageState extends State<LeavesPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            final items = List.of(snapshot.data ?? []);
+            // Filter client-side by selected month (overlap) and status
+            final items = List.of(snapshot.data ?? []).where((lv) {
+              final matchesStatus = _filterStatus == null || _filterStatus!.isEmpty || lv.status == _filterStatus;
+              final matchesMonth = _filterMonth == null || (() {
+                final y = _filterMonth!.year;
+                final m = _filterMonth!.month;
+                final monthStart = DateTime(y, m, 1);
+                final monthEndExclusive = m == 12 ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
+                // Overlap if lv.endDate >= monthStart AND lv.startDate < monthEndExclusive
+                return !lv.endDate.isBefore(monthStart) && lv.startDate.isBefore(monthEndExclusive);
+              })();
+              return matchesStatus && matchesMonth;
+            }).toList();
             // Sort by most recent start date first (latest on top)
             items.sort((a, b) {
               final ad = a.startDate;
@@ -880,10 +1093,12 @@ class _LeavesPageState extends State<LeavesPage> {
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final lv = items[i];
-                final range = '${lv.startDate.toString().split(' ').first} → ${lv.endDate.toString().split(' ').first}';
+                final start = lv.startDate.toString().split(' ').first;
+                final end = lv.endDate.toString().split(' ').first;
+                final range = '$start → $end';
                 return ListTile(
-                  title: Text(lv.typeKey),
-                  subtitle: Text(lv.reason ?? ''),
+                  title: Text(lv.reason?.isNotEmpty == true ? lv.reason! : '(No reason)'),
+                  subtitle: Text('${lv.typeKey} • $start → $end'),
                   isThreeLine: true,
                   minVerticalPadding: 8,
                   trailing: Column(

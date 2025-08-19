@@ -6,6 +6,7 @@ class HiveInit {
       Hive.openBox<Map>('profiles_box'),
       Hive.openBox<Map>('leaves_box'),
       Hive.openBox<Map>('work_orders_box'),
+      Hive.openBox('settings_box'),
     ]);
   }
 }

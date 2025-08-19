@@ -42,4 +42,50 @@ class WorkOrdersRepository {
       await _fetch(uid);
     } catch (_) {}
   }
+
+  Future<List<WorkOrder>> getTodaysAssigned() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return [];
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).toIso8601String();
+    final end = DateTime(now.year, now.month, now.day + 1).toIso8601String();
+    final res = await _client
+        .from('work_orders')
+        .select()
+        .eq('assigned_to', uid)
+        .gte('due_date', start)
+        .lt('due_date', end)
+        .order('due_date');
+    return (res as List)
+        .map((e) => WorkOrder.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<Map<String, int>> getKpis() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return {'open': 0, 'in_progress': 0, 'overdue': 0};
+    final res = await _client
+        .from('work_orders')
+        .select()
+        .eq('assigned_to', uid);
+    final items = (res as List)
+        .map((e) => WorkOrder.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    final now = DateTime.now();
+    int open = 0, inProgress = 0, overdue = 0;
+    for (final w in items) {
+      final st = (w.status ?? '').toLowerCase();
+      if (st == 'in_progress' || st == 'in progress') {
+        inProgress++;
+      } else if (st == 'completed' || st == 'done') {
+        // skip
+      } else {
+        open++;
+      }
+      if ((w.dueDate != null) && (w.dueDate!.isBefore(now)) && st != 'completed') {
+        overdue++;
+      }
+    }
+    return {'open': open, 'in_progress': inProgress, 'overdue': overdue};
+  }
 }

@@ -42,4 +42,22 @@ class LeavesRepository {
       await _fetch(uid);
     } catch (_) {}
   }
+
+  Future<List<LeaveRequest>> getTodaysLeaves() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return [];
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).toIso8601String();
+    final end = DateTime(now.year, now.month, now.day + 1).toIso8601String();
+    final res = await _client
+        .from('leaves')
+        .select()
+        .eq('user_id', uid)
+        .gte('start_date', start)
+        .lt('start_date', end)
+        .order('start_date');
+    return (res as List)
+        .map((e) => LeaveRequest.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
 }

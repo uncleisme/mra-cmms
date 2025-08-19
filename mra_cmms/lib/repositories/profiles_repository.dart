@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
@@ -38,5 +39,35 @@ class ProfilesRepository {
     try {
       await _fetch(uid);
     } catch (_) {}
+  }
+
+  Future<void> updateName(String fullName) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return;
+    final res = await _client
+        .from('profiles')
+        .update({'full_name': fullName})
+        .eq('id', uid)
+        .select()
+        .maybeSingle();
+    if (res != null) {
+      _box.put(uid, Map<String, dynamic>.from(res));
+    }
+  }
+
+  Future<String?> uploadAvatar({required Uint8List bytes, required String filename, String contentType = 'image/jpeg'}) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    final path = '$uid/$filename';
+    await _client.storage.from('avatars').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: contentType, upsert: true),
+        );
+    final url = _client.storage.from('avatars').getPublicUrl(path);
+    await _client.from('profiles').update({'avatar_url': url}).eq('id', uid);
+    // refresh cache
+    await _refresh(uid);
+    return url;
   }
 }

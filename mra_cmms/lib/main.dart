@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1065,19 +1066,29 @@ class _LeavesPageState extends State<LeavesPage> {
 
   Future<void> _loadFirstPage() async {
     try {
-      final page = await (
-        (widget.userId != null && widget.userId!.isNotEmpty)
-            ? repo.getLeavesForUserPage(widget.userId!, cursor: null, limit: 20)
-            : repo.getMyLeavesPage(cursor: null, limit: 20)
-      );
+      final future = (widget.userId != null && widget.userId!.isNotEmpty)
+          ? repo.getLeavesForUserPage(widget.userId!, cursor: null, limit: 20)
+          : repo.getMyLeavesPage(cursor: null, limit: 20);
+      final page = await future.timeout(const Duration(seconds: 12));
+      if (!mounted) return;
       setState(() {
         _items = page.items;
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
         _initialLoading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _initialLoading = false);
+    } on TimeoutException catch (_) {
+      if (!mounted) return;
+      setState(() => _initialLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Loading leaves took too long. Please try again.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _initialLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load leaves: $e')),
+      );
     }
   }
 
@@ -1085,11 +1096,10 @@ class _LeavesPageState extends State<LeavesPage> {
     if (!_hasMore || _loadingMore) return;
     setState(() => _loadingMore = true);
     try {
-      final page = await (
-        (widget.userId != null && widget.userId!.isNotEmpty)
-            ? repo.getLeavesForUserPage(widget.userId!, cursor: _nextCursor, limit: 20)
-            : repo.getMyLeavesPage(cursor: _nextCursor, limit: 20)
-      );
+      final future = (widget.userId != null && widget.userId!.isNotEmpty)
+          ? repo.getLeavesForUserPage(widget.userId!, cursor: _nextCursor, limit: 20)
+          : repo.getMyLeavesPage(cursor: _nextCursor, limit: 20);
+      final page = await future.timeout(const Duration(seconds: 12));
       setState(() {
         final existing = _items.map((e) => e.id).toSet();
         final toAdd = page.items.where((e) => !existing.contains(e.id)).toList();
@@ -1098,8 +1108,18 @@ class _LeavesPageState extends State<LeavesPage> {
         _hasMore = page.nextCursor != null;
         _loadingMore = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loadingMore = false);
+    } on TimeoutException catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Loading more leaves timed out.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load more leaves: $e')),
+      );
     }
   }
 

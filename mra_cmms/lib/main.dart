@@ -23,7 +23,9 @@ import 'features/profile/profile_page.dart';
 import 'features/dashboard/dashboard_providers.dart';
 import 'core/widgets/kpi_card.dart';
 import 'core/widgets/section_card.dart';
+import 'core/widgets/skeleton_box.dart';
 import 'features/orders/work_order_details_page.dart';
+import 'features/notifications/notifications_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +62,7 @@ class MyApp extends ConsumerWidget {
         '/leaves': (_) => const HomeShell(initialIndex: 2),
         '/settings': (_) => const HomeShell(initialIndex: 3),
         '/profile': (_) => const ProfilePage(),
+        '/notifications': (_) => const NotificationsPage(),
       },
     );
   }
@@ -236,8 +239,8 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(kpisProvider);
     final todaysOrders = ref.watch(todaysOrdersProvider);
-    final activities = ref.watch(recentActivitiesProvider);
     final profile = ref.watch(myProfileProvider);
+    final recent = ref.watch(recentNotificationsProvider);
 
     return Scaffold(
       body: CustomScrollView(
@@ -245,8 +248,13 @@ class DashboardPage extends ConsumerWidget {
           SliverToBoxAdapter(
             child: SafeArea(
               bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -265,21 +273,16 @@ class DashboardPage extends ConsumerWidget {
                             loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
                             error: (e, st) => const Text('Welcome'),
                           ),
-                          const SizedBox(height: 4),
-                          StreamBuilder<DateTime>(
-                            stream: Stream<DateTime>.periodic(const Duration(seconds: 30), (_) => DateTime.now()),
-                            builder: (context, snap) {
-                              final now = snap.data ?? DateTime.now();
-                              String two(int n) => n.toString().padLeft(2, '0');
-                              final date = '${now.year}-${two(now.month)}-${two(now.day)}';
-                              final time = '${two(now.hour)}:${two(now.minute)}';
-                              return Text('$date • $time', style: Theme.of(context).textTheme.bodySmall);
-                            },
-                          ),
+                          // Date/time removed per request
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Notifications',
+                      onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                      icon: const Icon(Icons.notifications_none),
+                    ),
+                    const SizedBox(width: 4),
                     profile.when(
                       data: (p) {
                         final avatarUrl = p?.avatarUrl;
@@ -295,16 +298,6 @@ class DashboardPage extends ConsumerWidget {
                       },
                       loading: () => const CircleAvatar(radius: 18, child: Icon(Icons.person_outline, size: 20)),
                       error: (e, st) => const CircleAvatar(radius: 18, child: Icon(Icons.person_outline, size: 20)),
-                    ),
-                    IconButton(
-                      tooltip: 'Sign out',
-                      icon: const Icon(Icons.logout),
-                      onPressed: () async {
-                        await Supabase.instance.client.auth.signOut();
-                        if (context.mounted) {
-                          Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
-                        }
-                      },
                     ),
                   ],
                 ),
@@ -359,24 +352,26 @@ class DashboardPage extends ConsumerWidget {
                           separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, i) {
                             final wo = visible[i];
-                            return ListTile(
-                              dense: true,
-                              visualDensity: VisualDensity.compact,
-                              leading: const Icon(Icons.build_outlined),
-                              title: Text(wo.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), Text(wo.priority ?? '-')]),
-                              trailing: FilledButton.icon(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => WorkOrderDetailsPage(id: wo.id),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Start'),
+                            return RepaintBoundary(
+                              child: ListTile(
+                                dense: true,
+                                visualDensity: VisualDensity.compact,
+                                leading: const Icon(Icons.build_outlined),
+                                title: Text(wo.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), Text(wo.priority ?? '-')]),
+                                trailing: FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: const Text('Start'),
+                                ),
+                                onTap: () => Navigator.pushNamed(context, '/orders'),
                               ),
-                              onTap: () => Navigator.pushNamed(context, '/orders'),
                             );
                           },
                         ),
@@ -438,47 +433,125 @@ class DashboardPage extends ConsumerWidget {
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                   ];
-                  final controller = PageController(viewportFraction: 0.85, keepPage: true);
-                  return SizedBox(
-                    height: 130,
-                    child: PageView.builder(
-                      controller: controller,
-                      physics: const PageScrollPhysics(),
-                      pageSnapping: true,
-                      padEnds: true, // edge padding for first/last cards
-                      itemCount: cards.length,
-                      itemBuilder: (context, index) {
-                        return AnimatedBuilder(
-                          animation: controller,
-                          builder: (context, child) {
-                            double value = 1.0;
-                            if (controller.position.haveDimensions) {
-                              final page = controller.page ?? controller.initialPage.toDouble();
-                              // Stronger hero: larger delta (0.20) and lower min scale (0.80)
-                              value = (1 - ((page - index).abs() * 0.20)).clamp(0.80, 1.0);
+                  return GridView.builder(
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cards.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 2.2,
+                    ),
+                    itemBuilder: (context, index) => cards[index],
+                  );
+                },
+                loading: () => GridView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 4,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 2.2,
+                  ),
+                  itemBuilder: (context, index) => const SkeletonBox(height: 64),
+                ),
+                error: (e, st) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+          
+          SliverToBoxAdapter(
+            child: recent.when(
+              data: (items) {
+                final visible = items.take(5).toList();
+                return SectionCard(
+                  title: 'Recent activity',
+                  leadingIcon: Icons.notifications_none,
+                  filled: true,
+                  count: items.length,
+                  actions: [
+                    IconButton(
+                      tooltip: 'Refresh',
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () => ref.refresh(recentNotificationsProvider),
+                    ),
+                  ],
+                  onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
+                  child: visible.isEmpty
+                      ? const ListTile(
+                          leading: Icon(Icons.notifications_off_outlined),
+                          title: Text('No recent activity'),
+                          subtitle: Text('You are all caught up.'),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, index) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final n = visible[i];
+                            String timeAgo(DateTime dt) {
+                              final now = DateTime.now();
+                              final diff = now.difference(dt.toLocal());
+                              if (diff.inSeconds < 60) return 'just now';
+                              if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+                              if (diff.inHours < 24) return '${diff.inHours}h ago';
+                              if (diff.inDays == 1) return 'yesterday';
+                              if (diff.inDays < 7) return '${diff.inDays}d ago';
+                              final weeks = (diff.inDays / 7).floor();
+                              if (weeks < 5) return '${weeks}w ago';
+                              final months = (diff.inDays / 30).floor();
+                              if (months < 12) return '${months}mo ago';
+                              final years = (diff.inDays / 365).floor();
+                              return '${years}y ago';
                             }
-                            final lift = (1 - value) * 8; // slight vertical lift on focus
-                            final opacity = 0.6 + (value * 0.4); // side cards dim
-                            return Padding(
-                              padding: EdgeInsets.only(right: index == cards.length - 1 ? 0 : 12),
-                              child: Transform.translate(
-                                offset: Offset(0, lift * -1),
-                                child: Transform.scale(
-                                  scale: value,
-                                  alignment: Alignment.center,
-                                  child: Opacity(opacity: opacity, child: child),
+                            return RepaintBoundary(
+                              child: ListTile(
+                                dense: true,
+                                visualDensity: VisualDensity.compact,
+                                leading: const Icon(Icons.notifications_outlined),
+                                title: Text(
+                                  (n.message ?? n.title ?? 'Activity'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w600),
                                 ),
+                                trailing: Text(timeAgo(n.createdAt), style: Theme.of(context).textTheme.bodySmall),
+                                onTap: () => Navigator.pushNamed(context, '/notifications'),
                               ),
                             );
                           },
-                          child: cards[index],
-                        );
-                      },
-                    ),
-                  );
-                },
-                loading: () => const LinearProgressIndicator(),
-                error: (e, st) => const SizedBox.shrink(),
+                        ),
+                );
+              },
+              loading: () => SectionCard(
+                title: 'Recent activity',
+                leadingIcon: Icons.notifications_none,
+                filled: true,
+                onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
+                child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+              ),
+              error: (e, st) => SectionCard(
+                title: 'Recent activity',
+                leadingIcon: Icons.notifications_none,
+                filled: true,
+                onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Failed to load recent activity'),
+                      const SizedBox(height: 4),
+                      Text('$e', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -491,96 +564,85 @@ class DashboardPage extends ConsumerWidget {
                   MaterialPageRoute(builder: (_) => const LeavesPage(userId: fixedUid)),
                 );
               },
-              child: FutureBuilder<List<LeaveRequest>>(
-                future: LeavesRepository().getTodaysLeavesForUser('9022b441-6257-4d6b-ac9d-7461fa6db6dd'),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
-                  }
-                  final items = List<LeaveRequest>.of(snapshot.data ?? const []);
-                  if (items.isEmpty) {
-                    return const ListTile(
-                      leading: Icon(Icons.beach_access_outlined),
-                      title: Text('No leaves today'),
-                      subtitle: Text('Enjoy your day!'),
-                    );
-                  }
-                  final visible = items.take(5).toList();
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final lv = visible[i];
-                      final range = '${lv.startDate.toString().split(' ').first} → ${lv.endDate.toString().split(' ').first}';
-                      return ListTile(
-                        leading: const Icon(Icons.event_outlined),
-                        title: Text(lv.typeKey, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(lv.reason ?? ''),
-                        isThreeLine: true,
-                        minVerticalPadding: 8,
-                        trailing: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            StatusChip(lv.status),
-                            const SizedBox(height: 4),
-                            Text(range),
-                          ],
-                        ),
-                        onTap: () {
-                          const fixedUid = '9022b441-6257-4d6b-ac9d-7461fa6db6dd';
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const LeavesPage(userId: fixedUid)),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
+              child: const _TodaysLeavesSection(userId: '9022b441-6257-4d6b-ac9d-7461fa6db6dd'),
             ),
           ),
-          SliverToBoxAdapter(
-            child: SectionCard(
-              title: 'Recent activity',
-              child: activities.when(
-                data: (items) {
-                  if (items.isEmpty) {
-                    return const ListTile(
-                      leading: Icon(Icons.notifications_none),
-                      title: Text('No recent activity'),
-                    );
-                  }
-                  final visible = items.take(6).toList();
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final n = visible[i];
-                      return ListTile(
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.notifications_active_outlined),
-                        title: Text(n.title ?? 'Notification', maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(n.body ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                        trailing: Text(n.createdAt.toLocal().toString().split('.').first),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                error: (e, st) => const ListTile(title: Text('Failed to load activity')),
-              ),
-            ),
-          ),
+          
         ],
       ),
       bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
+    );
+  }
+}
+
+class _TodaysLeavesSection extends StatefulWidget {
+  final String userId;
+  const _TodaysLeavesSection({required this.userId});
+
+  @override
+  State<_TodaysLeavesSection> createState() => _TodaysLeavesSectionState();
+}
+
+class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
+  late Future<List<LeaveRequest>> _future;
+  final _repo = LeavesRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _repo.getTodaysLeavesForUser(widget.userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<LeaveRequest>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
+        }
+        final items = List<LeaveRequest>.of(snapshot.data ?? const []);
+        if (items.isEmpty) {
+          return const ListTile(
+            leading: Icon(Icons.beach_access_outlined),
+            title: Text('No leaves today'),
+            subtitle: Text('Enjoy your day!'),
+          );
+        }
+        final visible = items.take(5).toList();
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visible.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final lv = visible[i];
+            final range = '${lv.startDate.toString().split(' ').first} → ${lv.endDate.toString().split(' ').first}';
+            return RepaintBoundary(
+              child: ListTile(
+                leading: const Icon(Icons.event_outlined),
+                title: Text(lv.typeKey, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(lv.reason ?? ''),
+                isThreeLine: true,
+                minVerticalPadding: 8,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    StatusChip(lv.status),
+                    const SizedBox(height: 4),
+                    Text(range),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.pushNamed(context, '/leaves');
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -595,7 +657,12 @@ class OrdersPage extends StatefulWidget {
 
 class _OrdersPageState extends State<OrdersPage> {
   final repo = WorkOrdersRepository();
-  late Future<List<WorkOrder>> _future;
+  final _scrollController = ScrollController();
+  List<WorkOrder> _items = const [];
+  String? _nextCursor;
+  bool _initialLoading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
   String _query = '';
   String _sortKey = 'due'; // 'due' | 'priority' | 'status' | 'title'
   bool _ascending = false; // latest first by default
@@ -603,14 +670,62 @@ class _OrdersPageState extends State<OrdersPage> {
   @override
   void initState() {
     super.initState();
-    _future = repo.getAssignedToMe();
+    _scrollController.addListener(() {
+      if (_loadingMore || !_hasMore) return;
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 200) {
+        _loadMore();
+      }
+    });
+    _loadFirstPage();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _future = repo.getAssignedToMe();
-    });
-    await _future;
+    _nextCursor = null;
+    _hasMore = true;
+    _items = const [];
+    setState(() => _initialLoading = true);
+    await _loadFirstPage();
+  }
+
+  Future<void> _loadFirstPage() async {
+    try {
+      final page = await repo.getAssignedToMePage(cursor: null, limit: 20);
+      setState(() {
+        _items = page.items;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+        _initialLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _initialLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await repo.getAssignedToMePage(cursor: _nextCursor, limit: 20);
+      setState(() {
+        // Deduplicate by id when appending
+        final existingIds = _items.map((e) => e.id).toSet();
+        final newOnes = page.items.where((e) => !existingIds.contains(e.id)).toList();
+        _items = List.of(_items)..addAll(newOnes);
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   void _createOrder() {
@@ -766,13 +881,11 @@ class _OrdersPageState extends State<OrdersPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<WorkOrder>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            List<WorkOrder> items = List.of(snapshot.data ?? []);
+        child: Builder(builder: (context) {
+          if (_initialLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          List<WorkOrder> items = List.of(_items);
             // Filter by query
             if (_query.isNotEmpty) {
               final q = _query.toLowerCase();
@@ -812,10 +925,15 @@ class _OrdersPageState extends State<OrdersPage> {
                 default:
                   final ad = a.dueDate;
                   final bd = b.dueDate;
-                  if (ad == null && bd == null) res = 0;
-                  else if (ad == null) res = 1; // nulls last
-                  else if (bd == null) res = -1;
-                  else res = ad.compareTo(bd);
+                  if (ad == null && bd == null) {
+                    res = 0;
+                  } else if (ad == null) {
+                    res = 1; // nulls last
+                  } else if (bd == null) {
+                    res = -1;
+                  } else {
+                    res = ad.compareTo(bd);
+                  }
               }
               return _ascending ? res : -res;
             }
@@ -829,41 +947,62 @@ class _OrdersPageState extends State<OrdersPage> {
                 onAction: _createOrder,
               );
             }
-            return ListView.separated(
+            return ListView.custom(
               physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final wo = items[i];
-                return ListTile(
-                  title: Text(wo.title ?? 'Untitled'),
-                  subtitle: Row(
-                    children: [
-                      if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                      const SizedBox(width: 8),
-                      PriorityChip(wo.priority),
-                    ],
-                  ),
-                  trailing: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Due', style: TextStyle(fontSize: 12)),
-                      Text(wo.dueDate?.toString().split(' ').first ?? ''),
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => WorkOrderDetailsPage(id: wo.id),
-                      ),
-                    );
-                  },
-                );
-              },
+              controller: _scrollController,
+              childrenDelegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  if (i == items.length) {
+                    return _loadingMore
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : const SizedBox.shrink();
+                  }
+                  final wo = items[i];
+                  final isLast = i == items.length - 1;
+                  return RepaintBoundary(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: Text(wo.title ?? 'Untitled'),
+                          subtitle: Row(
+                            children: [
+                              if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                              const SizedBox(width: 8),
+                              PriorityChip(wo.priority),
+                            ],
+                          ),
+                          trailing: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('Due', style: TextStyle(fontSize: 12)),
+                              Text(wo.dueDate?.toString().split(' ').first ?? ''),
+                            ],
+                          ),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                              ),
+                            );
+                          },
+                        ),
+                        if (!isLast) const Divider(height: 1),
+                      ],
+                    ),
+                  );
+                },
+                childCount: items.length + (_loadingMore ? 1 : 0),
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: true,
+              ),
             );
-          },
-        ),
+          },),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'orders_fab',
@@ -887,29 +1026,81 @@ class LeavesPage extends StatefulWidget {
 
 class _LeavesPageState extends State<LeavesPage> {
   final repo = LeavesRepository();
-  late Future<List<LeaveRequest>> _future;
+  final _scrollController = ScrollController();
+  List<LeaveRequest> _items = const [];
+  String? _nextCursor;
+  bool _initialLoading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
   DateTime? _filterMonth; // month/year
   String? _filterStatus; // approved, pending, rejected
 
   @override
   void initState() {
     super.initState();
-    if (widget.userId != null && widget.userId!.isNotEmpty) {
-      _future = repo.getLeavesForUser(widget.userId!);
-    } else {
-      _future = repo.getMyLeaves();
-    }
+    _scrollController.addListener(() {
+      if (_loadingMore || !_hasMore) return;
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 200) {
+        _loadMore();
+      }
+    });
+    _loadFirstPage();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      if (widget.userId != null && widget.userId!.isNotEmpty) {
-        _future = repo.getLeavesForUser(widget.userId!);
-      } else {
-        _future = repo.getMyLeaves();
-      }
-    });
-    await _future;
+    _nextCursor = null;
+    _hasMore = true;
+    _items = const [];
+    setState(() => _initialLoading = true);
+    await _loadFirstPage();
+  }
+
+  Future<void> _loadFirstPage() async {
+    try {
+      final page = await (
+        (widget.userId != null && widget.userId!.isNotEmpty)
+            ? repo.getLeavesForUserPage(widget.userId!, cursor: null, limit: 20)
+            : repo.getMyLeavesPage(cursor: null, limit: 20)
+      );
+      setState(() {
+        _items = page.items;
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+        _initialLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _initialLoading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await (
+        (widget.userId != null && widget.userId!.isNotEmpty)
+            ? repo.getLeavesForUserPage(widget.userId!, cursor: _nextCursor, limit: 20)
+            : repo.getMyLeavesPage(cursor: _nextCursor, limit: 20)
+      );
+      setState(() {
+        final existing = _items.map((e) => e.id).toSet();
+        final toAdd = page.items.where((e) => !existing.contains(e.id)).toList();
+        _items = List.of(_items)..addAll(toAdd);
+        _nextCursor = page.nextCursor;
+        _hasMore = page.nextCursor != null;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   void _createLeave() {
@@ -1050,14 +1241,12 @@ class _LeavesPageState extends State<LeavesPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<LeaveRequest>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            // Filter client-side by selected month (overlap) and status
-            final items = List.of(snapshot.data ?? []).where((lv) {
+        child: Builder(builder: (context) {
+          if (_initialLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          // Filter client-side by selected month (overlap) and status
+          final items = List.of(_items).where((lv) {
               final matchesStatus = _filterStatus == null || _filterStatus!.isEmpty || lv.status == _filterStatus;
               final matchesMonth = _filterMonth == null || (() {
                 final y = _filterMonth!.year;
@@ -1070,14 +1259,7 @@ class _LeavesPageState extends State<LeavesPage> {
               return matchesStatus && matchesMonth;
             }).toList();
             // Sort by most recent start date first (latest on top)
-            items.sort((a, b) {
-              final ad = a.startDate;
-              final bd = b.startDate;
-              if (ad == null && bd == null) return 0;
-              if (ad == null) return 1; // nulls last
-              if (bd == null) return -1;
-              return bd.compareTo(ad); // descending
-            });
+            items.sort((a, b) => b.startDate.compareTo(a.startDate));
             if (items.isEmpty) {
               return EmptyState(
                 icon: Icons.beach_access_outlined,
@@ -1087,35 +1269,56 @@ class _LeavesPageState extends State<LeavesPage> {
                 onAction: _createLeave,
               );
             }
-            return ListView.separated(
+            return ListView.custom(
               physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final lv = items[i];
-                final start = lv.startDate.toString().split(' ').first;
-                final end = lv.endDate.toString().split(' ').first;
-                final range = '$start → $end';
-                return ListTile(
-                  title: Text(lv.reason?.isNotEmpty == true ? lv.reason! : '(No reason)'),
-                  subtitle: Text('${lv.typeKey} • $start → $end'),
-                  isThreeLine: true,
-                  minVerticalPadding: 8,
-                  trailing: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      StatusChip(lv.status),
-                      const SizedBox(height: 4),
-                      Text(range),
-                    ],
-                  ),
-                );
-              },
+              controller: _scrollController,
+              childrenDelegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  if (i == items.length) {
+                    return _loadingMore
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : const SizedBox.shrink();
+                  }
+                  final lv = items[i];
+                  final start = lv.startDate.toString().split(' ').first;
+                  final end = lv.endDate.toString().split(' ').first;
+                  final range = '$start → $end';
+                  final isLast = i == items.length - 1;
+                  return RepaintBoundary(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: Text(lv.reason?.isNotEmpty == true ? lv.reason! : '(No reason)'),
+                          subtitle: Text('${lv.typeKey} • $start → $end'),
+                          isThreeLine: true,
+                          minVerticalPadding: 8,
+                          trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              StatusChip(lv.status),
+                              const SizedBox(height: 4),
+                              Text(range),
+                            ],
+                          ),
+                        ),
+                        if (!isLast) const Divider(height: 1),
+                      ],
+                    ),
+                  );
+                },
+                childCount: items.length + (_loadingMore ? 1 : 0),
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: true,
+              ),
             );
-          },
-        ),
+          },),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'leaves_fab',
@@ -1160,6 +1363,7 @@ class SettingsPage extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const ListTile(title: Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600))),
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.system,
                           groupValue: mode,

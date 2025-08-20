@@ -27,8 +27,9 @@ class SectionCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: filled ? scheme.secondaryContainer : null,
-      elevation: filled ? 1 : null,
+      color: filled ? scheme.secondaryContainer : scheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: padding,
         child: Column(
@@ -56,21 +57,34 @@ class SectionCard extends StatelessWidget {
                 if (count != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: Chip(
-                      label: Text('$count'),
-                      labelStyle: TextStyle(color: scheme.onPrimary),
-                      backgroundColor: scheme.primary,
-                      visualDensity: VisualDensity.compact,
-                      side: BorderSide.none,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: filled
+                            ? scheme.onSecondaryContainer.withValues(alpha: 0.12)
+                            : scheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: filled ? scheme.onSecondaryContainer : scheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
                   ),
                 if (onSeeAll != null)
-                  TextButton.icon(
+                  TextButton(
                     onPressed: onSeeAll,
-                    icon: const Icon(Icons.chevron_right),
-                    label: const Text('See all'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: filled ? scheme.onSecondaryContainer : null,
+                    style: TextButton.styleFrom(foregroundColor: filled ? scheme.onSecondaryContainer : null),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text('See all'),
+                        SizedBox(width: 4),
+                        Icon(Icons.chevron_right),
+                      ],
                     ),
                   ),
               ],

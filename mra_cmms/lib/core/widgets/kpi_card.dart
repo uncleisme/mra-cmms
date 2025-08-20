@@ -7,6 +7,7 @@ class KpiCard extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTap;
   final IconData? illustrationIcon;
+  final double? trendPercent; // positive for up, negative for down
 
   const KpiCard({
     super.key,
@@ -16,6 +17,7 @@ class KpiCard extends StatelessWidget {
     this.color,
     this.onTap,
     this.illustrationIcon,
+    this.trendPercent,
   });
 
   @override
@@ -49,25 +51,24 @@ class KpiCard extends StatelessWidget {
 
     return Card(
       color: cardBg,
-      elevation: 1, // subtle elevation as per M3
+      elevation: 0,
       margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         overlayColor: WidgetStatePropertyAll(scheme.onSurface.withValues(alpha: isDark ? 0.10 : 0.06)),
         child: Stack(
           children: [
-            // Background illustration icon
-            Positioned(
-              right: -4,
-              bottom: -4,
-              child: Icon(
-                illustrationIcon ?? icon,
-                size: 84,
-                color: (color ?? Theme.of(context).colorScheme.onSurface)
-                    .withValues(alpha: isDark ? 0.10 : 0.08),
+            if (illustrationIcon != null)
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: Icon(
+                  illustrationIcon,
+                  size: 84,
+                  color: (color ?? Theme.of(context).colorScheme.onSurface)
+                      .withValues(alpha: isDark ? 0.10 : 0.08),
+                ),
               ),
-            ),
             Padding(
               padding: const EdgeInsets.all(16), // M3 default card padding
               child: Row(
@@ -80,6 +81,7 @@ class KpiCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -88,11 +90,32 @@ class KpiCard extends StatelessWidget {
                                 color: scheme.onSurfaceVariant,
                               ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           '$value',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                         ),
+                        if (trendPercent != null) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                trendPercent! >= 0 ? Icons.trending_up : Icons.trending_down,
+                                size: 16,
+                                color: trendPercent! >= 0 ? Colors.green : scheme.error,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${trendPercent! >= 0 ? '+' : ''}${trendPercent!.toStringAsFixed(1)}%',
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

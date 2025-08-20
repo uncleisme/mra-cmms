@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart' as mime;
 import '../../models/profile.dart';
@@ -70,8 +71,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    String fmt(DateTime d) {
+      String two(int n) => n.toString().padLeft(2, '0');
+      final l = d.toLocal();
+      return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<Profile?>(
@@ -84,71 +90,177 @@ class _ProfilePageState extends State<ProfilePage> {
             if (p == null) {
               return const Center(child: Text('No profile found'));
             }
-            return ListView(
-              padding: const EdgeInsets.all(16),
+
+            final scheme = Theme.of(context).colorScheme;
+            final nameStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, color: Colors.white);
+            final emailStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70);
+
+            return CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                Row(
-                  children: [
-                    Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 44,
-                          backgroundImage: p.avatarUrl != null ? NetworkImage(p.avatarUrl!) : null,
-                          child: p.avatarUrl == null ? const Icon(Icons.person, size: 44) : null,
+              slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  stretch: true,
+                  expandedHeight: 220,
+                  title: const Text('Profile'),
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [scheme.primary, scheme.primaryContainer],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Material(
-                            color: Theme.of(context).colorScheme.primary,
-                            shape: const CircleBorder(),
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: _changePhoto,
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: Align(
+                              alignment: Alignment.bottomLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 44,
+                                          backgroundColor: Colors.white24,
+                                          backgroundImage: (p.avatarUrl != null && p.avatarUrl!.isNotEmpty)
+                                              ? NetworkImage(p.avatarUrl!)
+                                              : null,
+                                          child: (p.avatarUrl == null || p.avatarUrl!.isEmpty)
+                                              ? const Icon(Icons.person, size: 44, color: Colors.white)
+                                              : null,
+                                        ),
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Material(
+                                            color: scheme.secondary,
+                                            shape: const CircleBorder(),
+                                            child: InkWell(
+                                              customBorder: const CircleBorder(),
+                                              onTap: _changePhoto,
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(8),
+                                                child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(child: Text(p.fullName ?? '-', style: nameStyle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(p.email ?? '-', style: emailStyle),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: Text(p.fullName ?? '-', style: Theme.of(context).textTheme.titleLarge)),
-                              IconButton(
-                                tooltip: 'Edit name',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _editName(p),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(p.email ?? '-', style: Theme.of(context).textTheme.bodyMedium),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const Divider(height: 32),
-                ListTile(
-                  leading: const Icon(Icons.badge),
-                  title: const Text('Role'),
-                  subtitle: Text(p.type ?? '-'),
-                ),
-                if (p.createdAt != null)
-                  ListTile(
-                    leading: const Icon(Icons.calendar_today),
-                    title: const Text('Created'),
-                    subtitle: Text(p.createdAt!.toLocal().toString()),
                   ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Account', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 8),
+                                ListTile(
+                                  leading: const Icon(Icons.email_outlined),
+                                  title: const Text('Email'),
+                                  subtitle: Text(p.email ?? '-'),
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.badge_outlined),
+                                  title: const Text('Role'),
+                                  subtitle: Text(p.type ?? '-'),
+                                ),
+                                if (p.createdAt != null)
+                                  ListTile(
+                                    leading: const Icon(Icons.calendar_today_outlined),
+                                    title: const Text('Joined'),
+                                    subtitle: Text(fmt(p.createdAt!)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.edit_outlined),
+                                title: const Text('Edit name'),
+                                subtitle: const Text('Update your display name'),
+                                onTap: () => _editName(p),
+                              ),
+                              const Divider(height: 1),
+                              ListTile(
+                                leading: const Icon(Icons.image_outlined),
+                                title: const Text('Change photo'),
+                                subtitle: const Text('Upload a new profile picture'),
+                                onTap: _changePhoto,
+                              ),
+                              const Divider(height: 1),
+                              ListTile(
+                                leading: const Icon(Icons.logout),
+                                title: const Text('Sign out'),
+                                subtitle: const Text('Sign out of your account'),
+                                onTap: () async {
+                                  final navigator = Navigator.of(context);
+                                  final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Sign out?'),
+                                          content: const Text('Are you sure you want to sign out?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false;
+                                  if (!confirm) return;
+                                  await Supabase.instance.client.auth.signOut();
+                                  if (!mounted) return;
+                                  navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             );
           },

@@ -109,6 +109,7 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                 status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
             return ListView(
               padding: const EdgeInsets.only(bottom: 24),
+              cacheExtent: 800,
               children: [
                 // Header section
                 Padding(
@@ -189,24 +190,44 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   ],
                   child: _attachmentUrls.isEmpty
                       ? Text('No attachments', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
-                      : GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                          itemCount: _attachmentUrls.length,
-                          itemBuilder: (context, index) {
-                            final url = _attachmentUrls[index];
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: InkWell(
-                                onTap: () => showDialog(
-                                  context: context,
-                                  builder: (_) => Dialog(
-                                    child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
-                                  ),
-                                ),
-                                child: Image.network(url, fit: BoxFit.cover),
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            const crossAxisCount = 3;
+                            const spacing = 8.0;
+                            final cellWidth = ((constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).floor();
+                            return GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: spacing,
+                                mainAxisSpacing: spacing,
                               ),
+                              itemCount: _attachmentUrls.length,
+                              itemBuilder: (context, index) {
+                                final url = _attachmentUrls[index];
+                                return RepaintBoundary(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: InkWell(
+                                      onTap: () => showDialog(
+                                        context: context,
+                                        builder: (_) => Dialog(
+                                          child: InteractiveViewer(
+                                            child: Image.network(url, fit: BoxFit.contain),
+                                          ),
+                                        ),
+                                      ),
+                                      child: Image.network(
+                                        url,
+                                        fit: BoxFit.cover,
+                                        cacheWidth: cellWidth, // downscale decode to cell size
+                                        filterQuality: FilterQuality.low,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -266,8 +287,8 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
 
 class _TaskItem {
   final String title;
-  bool done;
-  _TaskItem(this.title, {this.done = false});
+  bool done = false;
+  _TaskItem(this.title);
 }
 
 class _InfoRow extends StatelessWidget {

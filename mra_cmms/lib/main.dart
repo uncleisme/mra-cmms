@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:animations/animations.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -7,8 +8,10 @@ import 'core/supabase_config.dart';
 import 'core/hive_init.dart';
 import 'repositories/work_orders_repository.dart';
 import 'repositories/leaves_repository.dart';
+import 'repositories/profiles_repository.dart';
 import 'models/work_order.dart';
 import 'models/leave.dart';
+import 'models/profile.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/util.dart';
 import 'core/theme/theme_controller.dart';
@@ -27,6 +30,23 @@ import 'core/widgets/section_card.dart';
 import 'core/widgets/skeleton_box.dart';
 import 'features/orders/work_order_details_page.dart';
 import 'features/notifications/notifications_page.dart';
+
+// Shared lightweight helpers to reduce allocations in build methods
+String titleCase(String input) {
+  final s = input.trim();
+  if (s.isEmpty) return input;
+  return s
+      .split(RegExp(r'\s+'))
+      .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+      .join(' ');
+}
+
+String fmtShortDate(DateTime d) {
+  final yy = (d.year % 100).toString().padLeft(2, '0');
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm/$yy';
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -241,7 +261,7 @@ class DashboardPage extends ConsumerWidget {
     final kpis = ref.watch(kpisProvider);
     final todaysOrders = ref.watch(todaysOrdersProvider);
     final profile = ref.watch(myProfileProvider);
-    final recent = ref.watch(recentNotificationsProvider);
+    
 
     return Scaffold(
       body: CustomScrollView(
@@ -250,12 +270,8 @@ class DashboardPage extends ConsumerWidget {
             child: SafeArea(
               bottom: false,
               child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.fromLTRB(16, 36, 16, 24),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -269,7 +285,12 @@ class DashboardPage extends ConsumerWidget {
                               final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
                               final hour = DateTime.now().hour;
                               final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-                              return Text('$greeting, $name', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600));
+                              return Text(
+                                '$greeting, $name',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              );
                             },
                             loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
                             error: (e, st) => const Text('Welcome'),
@@ -289,16 +310,27 @@ class DashboardPage extends ConsumerWidget {
                         final avatarUrl = p?.avatarUrl;
                         return InkWell(
                           onTap: () => Navigator.pushNamed(context, '/profile'),
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(28),
                           child: CircleAvatar(
-                            radius: 18,
+                            radius: 24,
+                            backgroundColor: Colors.transparent,
                             backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-                            child: (avatarUrl == null || avatarUrl.isEmpty) ? const Icon(Icons.person_outline, size: 20) : null,
+                            child: (avatarUrl == null || avatarUrl.isEmpty)
+                                ? const Icon(Icons.person_outline, size: 24)
+                                : null,
                           ),
                         );
                       },
-                      loading: () => const CircleAvatar(radius: 18, child: Icon(Icons.person_outline, size: 20)),
-                      error: (e, st) => const CircleAvatar(radius: 18, child: Icon(Icons.person_outline, size: 20)),
+                      loading: () => const CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.transparent,
+                        child: Icon(Icons.person_outline, size: 24),
+                      ),
+                      error: (e, st) => const CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.transparent,
+                        child: Icon(Icons.person_outline, size: 24),
+                      ),
                     ),
                   ],
                 ),
@@ -335,60 +367,158 @@ class DashboardPage extends ConsumerWidget {
                 });
                 final visible = todayRelevant.take(5).toList();
                 return SectionCard(
-                  title: "Today's orders",
-                  leadingIcon: Icons.event_available,
+                  title: "Today's Order",
                   filled: true,
+                  backgroundColor: const Color(0xFF08234F),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(12, 18, 12, 18),
+                  titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 2.1,
+                        color: Colors.white,
+                      ),
                   count: todayRelevant.length,
                   onSeeAll: () => Navigator.pushNamed(context, '/orders'),
                   child: (visible.isEmpty)
-                      ? const ListTile(
-                          leading: Icon(Icons.assignment_outlined),
-                          title: Text('No orders for today'),
-                          subtitle: Text('You are all caught up.'),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: visible.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, i) {
-                            final wo = visible[i];
-                            return RepaintBoundary(
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Expanded(
+                              flex: 7,
                               child: ListTile(
-                                dense: true,
-                                visualDensity: VisualDensity.compact,
-                                leading: const Icon(Icons.build_outlined),
-                                title: Text(wo.title ?? 'Untitled', maxLines: 1, overflow: TextOverflow.ellipsis),
-                                subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), Text(wo.priority ?? '-')]),
-                                trailing: FilledButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => WorkOrderDetailsPage(id: wo.id),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: const Text('Start'),
-                                ),
-                                onTap: () => Navigator.pushNamed(context, '/orders'),
+                                title: Text('No orders for today'),
+                                subtitle: Text('You are all caught up.'),
                               ),
-                            );
-                          },
+                            ),
+                            Flexible(
+                              flex: 3,
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.9,
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: Image.network(
+                                      'https://cdn-icons-png.flaticon.com/512/10692/10692035.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 7,
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: visible.length,
+                                separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.white24),
+                                itemBuilder: (context, i) {
+                                  final wo = visible[i];
+                                  return RepaintBoundary(
+                                    child: OpenContainer(
+                                      transitionType: ContainerTransitionType.fadeThrough,
+                                      closedElevation: 0,
+                                      openElevation: 0,
+                                      closedColor: Colors.transparent,
+                                      openColor: Theme.of(context).scaffoldBackgroundColor,
+                                      closedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                      openBuilder: (context, _) => WorkOrderDetailsPage(id: wo.id),
+                                      closedBuilder: (context, open) => ListTile(
+                                        dense: true,
+                                        visualDensity: VisualDensity.compact,
+                                        title: Text(
+                                          (() {
+                                            final raw = (wo.title ?? 'Untitled').trim();
+                                            final safe = raw.isEmpty ? 'Untitled' : raw;
+                                            return titleCase(safe);
+                                          })(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.2,
+                                                color: Colors.white,
+                                              ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                                                const SizedBox(width: 8),
+                                                PriorityChip(wo.priority),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                            ConstrainedBox(
+                                              constraints: const BoxConstraints.tightFor(width: 160, height: 50),
+                                              child: FilledButton.icon(
+                                                onPressed: open,
+                                                style: FilledButton.styleFrom(
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                                  textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                                        fontSize: (Theme.of(context).textTheme.labelLarge?.fontSize ?? 14) * 1.5,
+                                                      ),
+                                                ),
+                                                icon: const Icon(Icons.play_arrow, size: 30),
+                                                label: const Text('Start'),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: open,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            Flexible(
+                              flex: 3,
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.9,
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: Image.network(
+                                      'https://cdn-icons-png.flaticon.com/512/10692/10692035.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                 );
               },
               loading: () => SectionCard(
                 title: "Today's orders",
-                leadingIcon: Icons.event_available,
                 filled: true,
+                backgroundColor: const Color(0xFF08234F),
+                foregroundColor: Colors.white,
+                titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+                    ),
                 onSeeAll: () => Navigator.pushNamed(context, '/orders'),
                 child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
               ),
               error: (e, st) => SectionCard(
                 title: "Today's orders",
-                leadingIcon: Icons.event_available,
                 filled: true,
+                backgroundColor: const Color(0xFF08234F),
+                foregroundColor: Colors.white,
+                titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+                    ),
                 onSeeAll: () => Navigator.pushNamed(context, '/orders'),
                 child: const ListTile(title: Text("Failed to load today's orders")),
               ),
@@ -399,38 +529,23 @@ class DashboardPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: kpis.when(
                 data: (v) {
-                  final scheme = Theme.of(context).colorScheme;
+                  final activeTotal = (v['active'] ?? 0) + (v['in_progress'] ?? 0);
+                  final doneTotal = (v['review'] ?? 0) + (v['done'] ?? 0);
                   final cards = [
                     KpiCard(
                       label: 'Active',
-                      value: v['active'] ?? 0,
+                      value: activeTotal,
                       icon: Icons.bolt_outlined,
                       illustrationIcon: Icons.bolt,
-                      color: scheme.primary,
-                      onTap: () => Navigator.pushNamed(context, '/orders'),
-                    ),
-                    KpiCard(
-                      label: 'In progress',
-                      value: v['in_progress'] ?? 0,
-                      icon: Icons.autorenew,
-                      illustrationIcon: Icons.autorenew,
-                      color: scheme.tertiary,
-                      onTap: () => Navigator.pushNamed(context, '/orders'),
-                    ),
-                    KpiCard(
-                      label: 'Review',
-                      value: v['review'] ?? 0,
-                      icon: Icons.fact_check_outlined,
-                      illustrationIcon: Icons.fact_check,
-                      color: scheme.secondary,
+                      color: const Color(0xFFC7B816),
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                     KpiCard(
                       label: 'Done',
-                      value: v['done'] ?? 0,
+                      value: doneTotal,
                       icon: Icons.task_alt,
                       illustrationIcon: Icons.task_alt,
-                      color: scheme.primary,
+                      color: const Color(0xFF1BC229),
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                   ];
@@ -452,7 +567,7 @@ class DashboardPage extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: 8, bottom: 8),
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 4,
+                  itemCount: 2,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
@@ -466,96 +581,7 @@ class DashboardPage extends ConsumerWidget {
             ),
           ),
           
-          SliverToBoxAdapter(
-            child: recent.when(
-              data: (items) {
-                final visible = items.take(5).toList();
-                return SectionCard(
-                  title: 'Recent activity',
-                  leadingIcon: Icons.notifications_none,
-                  filled: true,
-                  count: items.length,
-                  actions: [
-                    IconButton(
-                      tooltip: 'Refresh',
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () => ref.refresh(recentNotificationsProvider),
-                    ),
-                  ],
-                  onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
-                  child: visible.isEmpty
-                      ? const ListTile(
-                          leading: Icon(Icons.notifications_off_outlined),
-                          title: Text('No recent activity'),
-                          subtitle: Text('You are all caught up.'),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: visible.length,
-                          separatorBuilder: (_, index) => const Divider(height: 1),
-                          itemBuilder: (context, i) {
-                            final n = visible[i];
-                            String timeAgo(DateTime dt) {
-                              final now = DateTime.now();
-                              final diff = now.difference(dt.toLocal());
-                              if (diff.inSeconds < 60) return 'just now';
-                              if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-                              if (diff.inHours < 24) return '${diff.inHours}h ago';
-                              if (diff.inDays == 1) return 'yesterday';
-                              if (diff.inDays < 7) return '${diff.inDays}d ago';
-                              final weeks = (diff.inDays / 7).floor();
-                              if (weeks < 5) return '${weeks}w ago';
-                              final months = (diff.inDays / 30).floor();
-                              if (months < 12) return '${months}mo ago';
-                              final years = (diff.inDays / 365).floor();
-                              return '${years}y ago';
-                            }
-                            return RepaintBoundary(
-                              child: ListTile(
-                                dense: true,
-                                visualDensity: VisualDensity.compact,
-                                leading: const Icon(Icons.notifications_outlined),
-                                title: Text(
-                                  (n.message ?? n.title ?? 'Activity'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontWeight: n.isRead ? FontWeight.w400 : FontWeight.w600),
-                                ),
-                                trailing: Text(timeAgo(n.createdAt), style: Theme.of(context).textTheme.bodySmall),
-                                onTap: () => Navigator.pushNamed(context, '/notifications'),
-                              ),
-                            );
-                          },
-                        ),
-                );
-              },
-              loading: () => SectionCard(
-                title: 'Recent activity',
-                leadingIcon: Icons.notifications_none,
-                filled: true,
-                onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
-                child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-              ),
-              error: (e, st) => SectionCard(
-                title: 'Recent activity',
-                leadingIcon: Icons.notifications_none,
-                filled: true,
-                onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Failed to load recent activity'),
-                      const SizedBox(height: 4),
-                      Text('$e', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          
           SliverToBoxAdapter(
             child: SectionCard(
               title: "Today's leaves",
@@ -587,6 +613,38 @@ class _TodaysLeavesSection extends StatefulWidget {
 class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
   late Future<List<LeaveRequest>> _future;
   final _repo = LeavesRepository();
+  final _profilesRepo = ProfilesRepository();
+  final Map<String, Profile?> _profileCache = {};
+  final Set<String> _loadingProfiles = {};
+
+  String _fmtYyMYY(DateTime d) {
+    final yy = (d.year % 100).toString().padLeft(2, '0');
+    final m = d.month.toString();
+    return '$yy/$m/$yy';
+  }
+
+  (Color bg, Color fg) _typeColors(ThemeData theme, String typeKey) {
+    final cs = theme.colorScheme;
+    final t = typeKey.toLowerCase().trim();
+    switch (t) {
+      case 'annual':
+      case 'vacation':
+        return (const Color(0xFFC7B816), Colors.black); // brand-ish yellow
+      case 'sick':
+        return (const Color(0xFFB01C0E), Colors.white); // brand-ish red
+      case 'emergency':
+      case 'urgent':
+        return (cs.error, cs.onError);
+      case 'unpaid':
+        return (cs.tertiary, cs.onTertiary);
+      case 'maternity':
+      case 'paternity':
+        return (cs.secondary, cs.onSecondary);
+      default:
+        // fallback to secondary container tones
+        return (cs.secondaryContainer, cs.onSecondaryContainer);
+    }
+  }
 
   @override
   void initState() {
@@ -603,6 +661,20 @@ class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
           return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
         }
         final items = List<LeaveRequest>.of(snapshot.data ?? const []);
+        // Preload requester profiles for visible items
+        for (final lv in items.take(5)) {
+          final uid = lv.userId;
+          if (uid.isEmpty) continue;
+          if (_profileCache.containsKey(uid) || _loadingProfiles.contains(uid)) continue;
+          _loadingProfiles.add(uid);
+          _profilesRepo.getById(uid).then((p) {
+            if (!mounted) return;
+            setState(() {
+              _profileCache[uid] = p;
+              _loadingProfiles.remove(uid);
+            });
+          });
+        }
         if (items.isEmpty) {
           return const ListTile(
             leading: Icon(Icons.beach_access_outlined),
@@ -618,13 +690,47 @@ class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, i) {
             final lv = visible[i];
-            final range = '${lv.startDate.toString().split(' ').first} → ${lv.endDate.toString().split(' ').first}';
+            final range = '${_fmtYyMYY(lv.startDate)} → ${_fmtYyMYY(lv.endDate)}';
             return RepaintBoundary(
               child: ListTile(
                 leading: const Icon(Icons.event_outlined),
-                title: Text(lv.typeKey, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(lv.reason ?? ''),
-                isThreeLine: true,
+                title: Text(
+                  (_profileCache[lv.userId]?.fullName ?? '—').toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Builder(builder: (context) {
+                          final (bg, fg) = _typeColors(Theme.of(context), lv.typeKey);
+                          return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: bg,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              lv.typeKey,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: fg,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        Text(range, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                    // reason removed as requested
+                  ],
+                ),
+                isThreeLine: false,
                 minVerticalPadding: 8,
                 trailing: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -632,8 +738,6 @@ class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     StatusChip(lv.status),
-                    const SizedBox(height: 4),
-                    Text(range),
                   ],
                 ),
                 onTap: () {
@@ -962,35 +1066,54 @@ class _OrdersPageState extends State<OrdersPage> {
                         : const SizedBox.shrink();
                   }
                   final wo = items[i];
+                  String fmt(DateTime d) {
+                    final yy = (d.year % 100).toString().padLeft(2, '0');
+                    final dd = d.day.toString().padLeft(2, '0');
+                    final mm = d.month.toString().padLeft(2, '0');
+                    return '$dd/$mm/$yy';
+                  }
                   final isLast = i == items.length - 1;
                   return RepaintBoundary(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ListTile(
-                          title: Text(wo.title ?? 'Untitled'),
-                          subtitle: Row(
-                            children: [
-                              if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                              const SizedBox(width: 8),
-                              PriorityChip(wo.priority),
-                            ],
+                        OpenContainer(
+                          transitionType: ContainerTransitionType.fadeThrough,
+                          closedElevation: 0,
+                          openElevation: 0,
+                          closedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                          openBuilder: (context, _) => WorkOrderDetailsPage(id: wo.id),
+                          closedBuilder: (context, open) => ListTile(
+                            title: Text(
+                              (() {
+                                final raw = (wo.title ?? 'Untitled').trim();
+                                final safe = raw.isEmpty ? 'Untitled' : raw;
+                                return titleCase(safe);
+                              })(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.2,
+                                  ),
+                            ),
+                            subtitle: Row(
+                              children: [
+                                if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                                const SizedBox(width: 8),
+                                PriorityChip(wo.priority),
+                              ],
+                            ),
+                            trailing: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('Due', style: TextStyle(fontSize: 12)),
+                                Text(wo.dueDate == null ? '' : fmt(wo.dueDate!)),
+                              ],
+                            ),
+                            onTap: open,
                           ),
-                          trailing: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('Due', style: TextStyle(fontSize: 12)),
-                              Text(wo.dueDate?.toString().split(' ').first ?? ''),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => WorkOrderDetailsPage(id: wo.id),
-                              ),
-                            );
-                          },
                         ),
                         if (!isLast) const Divider(height: 1),
                       ],
@@ -1278,8 +1401,20 @@ class _LeavesPageState extends State<LeavesPage> {
               })();
               return matchesStatus && matchesMonth;
             }).toList();
-            // Sort by most recent start date first (latest on top)
-            items.sort((a, b) => b.startDate.compareTo(a.startDate));
+            // Sort: when no month filter -> by month (desc) then start date (desc)
+            //       when month filter applied -> by start date (desc)
+            items.sort((a, b) {
+              int monthKey(DateTime d) => d.year * 100 + d.month;
+              if (_filterMonth == null) {
+                final mkB = monthKey(b.startDate);
+                final mkA = monthKey(a.startDate);
+                final byMonth = mkB.compareTo(mkA);
+                if (byMonth != 0) return byMonth;
+                return b.startDate.compareTo(a.startDate);
+              } else {
+                return b.startDate.compareTo(a.startDate);
+              }
+            });
             if (items.isEmpty) {
               return EmptyState(
                 icon: Icons.beach_access_outlined,
@@ -1303,18 +1438,63 @@ class _LeavesPageState extends State<LeavesPage> {
                         : const SizedBox.shrink();
                   }
                   final lv = items[i];
-                  final start = lv.startDate.toString().split(' ').first;
-                  final end = lv.endDate.toString().split(' ').first;
-                  final range = '$start → $end';
+                  String fmt(DateTime d) {
+                    final yy = (d.year % 100).toString().padLeft(2, '0');
+                    final dd = d.day.toString().padLeft(2, '0');
+                    final mm = d.month.toString().padLeft(2, '0');
+                    return '$dd/$mm/$yy';
+                  }
+                  final start = fmt(lv.startDate);
+                  final end = fmt(lv.endDate);
+                  final totalDays = (() {
+                    final d = lv.endDate.difference(lv.startDate).inDays + 1; // inclusive
+                    return d < 1 ? 1 : d;
+                  })();
                   final isLast = i == items.length - 1;
+                  bool isNewMonth() {
+                    if (i == 0) return true;
+                    if (_filterMonth != null) return i == 0; // show one header when filtering by a specific month
+                    final prev = items[i - 1];
+                    return prev.startDate.year != lv.startDate.year || prev.startDate.month != lv.startDate.month;
+                  }
+                  String monthLabel(DateTime d) {
+                    const names = [
+                      'January','February','March','April','May','June','July','August','September','October','November','December'
+                    ];
+                    return '${names[d.month - 1]} ${d.year}';
+                  }
                   return RepaintBoundary(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (isNewMonth())
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                            child: Text(
+                              monthLabel(lv.startDate),
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                            ),
+                          ),
                         ListTile(
-                          title: Text(lv.reason?.isNotEmpty == true ? lv.reason! : '(No reason)'),
-                          subtitle: Text('${lv.typeKey} • $start → $end'),
-                          isThreeLine: true,
+                          title: Text(
+                            () {
+                              final s = (lv.typeKey).trim();
+                              if (s.isEmpty) return s;
+                              return s[0].toUpperCase() + s.substring(1).toLowerCase();
+                            }(),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            '$start to $end  ($totalDays ${totalDays == 1 ? 'day' : 'days'})',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          isThreeLine: false,
                           minVerticalPadding: 8,
                           trailing: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -1322,8 +1502,6 @@ class _LeavesPageState extends State<LeavesPage> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               StatusChip(lv.status),
-                              const SizedBox(height: 4),
-                              Text(range),
                             ],
                           ),
                         ),

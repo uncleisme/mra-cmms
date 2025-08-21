@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mime/mime.dart';
 
 class AttachmentsRepository {
-  static const String bucket = 'work_orders'; // Ensure this bucket exists in Supabase
+  static const String bucket = 'work-order'; // Ensure this bucket exists in Supabase
   final SupabaseClient _client = Supabase.instance.client;
 
   /// Lists attachment public URLs for a given work order id.
@@ -30,6 +31,20 @@ class AttachmentsRepository {
     final path = 'orders/$workOrderId/${ts}_$safeName';
     final contentType = lookupMimeType(file.path) ?? 'application/octet-stream';
     await _client.storage.from(bucket).upload(path, file, fileOptions: FileOptions(contentType: contentType));
+  }
+
+  /// Uploads raw bytes (web-friendly) under orders/{id}/{timestamp}_{name}
+  Future<void> uploadBytes(
+    String workOrderId,
+    Uint8List bytes, {
+    required String filename,
+    String? contentType,
+  }) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final safeName = filename.isNotEmpty ? filename : 'photo_$ts';
+    final path = 'orders/$workOrderId/${ts}_$safeName';
+    final ct = contentType ?? lookupMimeType(filename) ?? 'application/octet-stream';
+    await _client.storage.from(bucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: ct));
   }
 
   Future<bool> _isBucketPublic(String bucketId) async {

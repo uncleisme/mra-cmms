@@ -31,6 +31,7 @@ class KpiCard extends StatelessWidget {
 
     Color cardBg;
     Color iconFg;
+    Color? onTextColor; // used for label/value when solid custom color
     if (color == null || isPrimary) {
       cardBg = scheme.primaryContainer;
       iconFg = scheme.onPrimaryContainer;
@@ -41,13 +42,19 @@ class KpiCard extends StatelessWidget {
       cardBg = scheme.errorContainer;
       iconFg = scheme.onErrorContainer;
     } else {
-      // Fallback: blend a tint of the custom color with surface
-      cardBg = Color.alphaBlend(color!.withAlpha(isDark ? 48 : 30), scheme.surface);
-      iconFg = color!;
+      // Custom color: use SOLID background and compute contrasting foreground
+      cardBg = color!;
+      final lum = cardBg.computeLuminance();
+      final fg = lum < 0.5 ? Colors.white : Colors.black;
+      iconFg = fg;
+      onTextColor = fg;
     }
 
-    // Chip background: stronger tint for hierarchy
-    final chipBg = (color ?? iconFg).withAlpha(isDark ? 82 : 51);
+    // Chip background: when solid custom, use subtle onText overlay; else use existing tint
+    final bool isSolidCustom = color != null && !isPrimary && !isTertiary && !isError;
+    final chipBg = isSolidCustom
+        ? (onTextColor ?? iconFg).withValues(alpha: isDark ? 0.18 : 0.14)
+        : (color ?? iconFg).withAlpha(isDark ? 82 : 51);
 
     return Card(
       color: cardBg,
@@ -65,7 +72,7 @@ class KpiCard extends StatelessWidget {
                 child: Icon(
                   illustrationIcon,
                   size: 84,
-                  color: (color ?? Theme.of(context).colorScheme.onSurface)
+                  color: (isSolidCustom ? (onTextColor ?? iconFg) : (color ?? Theme.of(context).colorScheme.onSurface))
                       .withValues(alpha: isDark ? 0.10 : 0.08),
                 ),
               ),
@@ -87,13 +94,16 @@ class KpiCard extends StatelessWidget {
                         Text(
                           label,
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
+                                color: onTextColor ?? scheme.onSurfaceVariant,
                               ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '$value',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: onTextColor,
+                              ),
                         ),
                         if (trendPercent != null) ...[
                           const SizedBox(height: 2),

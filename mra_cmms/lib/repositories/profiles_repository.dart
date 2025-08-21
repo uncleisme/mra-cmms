@@ -41,6 +41,19 @@ class ProfilesRepository {
     } catch (_) {}
   }
 
+  /// Fetch a profile by user id (not necessarily the current user).
+  Future<Profile?> getById(String uid) async {
+    if (uid.isEmpty) return null;
+    // Prefer cache first
+    final cached = _box.get(uid);
+    if (cached != null) {
+      // fire-and-forget refresh
+      _refresh(uid);
+      return Profile.fromMap(Map<String, dynamic>.from(cached));
+    }
+    return _fetch(uid);
+  }
+
   Future<void> updateName(String fullName) async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return;

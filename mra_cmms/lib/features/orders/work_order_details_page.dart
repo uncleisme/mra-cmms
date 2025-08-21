@@ -1,9 +1,16 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mra_cmms/models/work_order.dart';
 import 'package:mra_cmms/repositories/work_orders_repository.dart';
+import 'package:mra_cmms/repositories/assets_repository.dart';
+import 'package:mra_cmms/repositories/locations_repository.dart';
+import 'package:mra_cmms/features/assets/asset_details_page.dart';
+import 'package:mra_cmms/features/locations/location_details_page.dart';
 import 'package:mra_cmms/repositories/attachments_repository.dart';
+import 'package:mra_cmms/repositories/profiles_repository.dart';
+import 'package:mra_cmms/models/profile.dart';
 import 'package:mra_cmms/core/widgets/section_card.dart';
 import 'package:mra_cmms/core/widgets/status_chip.dart';
 import 'package:mra_cmms/core/widgets/priority_chip.dart';
@@ -19,10 +26,19 @@ class WorkOrderDetailsPage extends ConsumerStatefulWidget {
 
 class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
   final repo = WorkOrdersRepository();
+  final assetsRepo = AssetsRepository();
+  final locationsRepo = LocationsRepository();
   final attachmentsRepo = AttachmentsRepository();
+  final profilesRepo = ProfilesRepository();
   late Future<WorkOrder?> _future;
   late List<_TaskItem> _tasks;
   List<String> _attachmentUrls = const [];
+  AssetInfo? _asset;
+  LocationInfo? _location;
+  Profile? _requester;
+  String? _assetIdLoaded;
+  String? _locationIdLoaded;
+  String? _requesterIdLoaded;
 
   @override
   void initState() {
@@ -38,12 +54,53 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
     _loadAttachments();
   }
 
+  Future<void> _ensureRefsLoaded(WorkOrder wo) async {
+    // Asset: work_orders.asset_id stores assets.id (UUID). Fetch by id, display asset_id.
+    final aid = wo.assetId;
+    if (aid != null && aid.isNotEmpty && _assetIdLoaded != aid) {
+      try {
+        final info = await assetsRepo.getById(aid);
+        if (!mounted) return;
+        setState(() {
+          _asset = info;
+          _assetIdLoaded = aid;
+        });
+      } catch (_) {}
+    }
+
+    // Requested by: work_orders.requested_by stores profiles.id (UUID). Fetch by id, display full_name.
+    final rid = wo.requestedBy;
+    if (rid != null && rid.isNotEmpty && _requesterIdLoaded != rid) {
+      try {
+        final info = await profilesRepo.getById(rid);
+        if (!mounted) return;
+        setState(() {
+          _requester = info;
+          _requesterIdLoaded = rid;
+        });
+      } catch (_) {}
+    }
+    // Location: work_orders.location_id stores locations.id (UUID). Fetch by id, display location_id.
+    final lid = wo.locationId;
+    if (lid != null && lid.isNotEmpty && _locationIdLoaded != lid) {
+      try {
+        final info = await locationsRepo.getById(lid);
+        if (!mounted) return;
+        setState(() {
+          _location = info;
+          _locationIdLoaded = lid;
+        });
+      } catch (_) {}
+    }
+  }
+
   Future<void> _refresh() async {
     setState(() {
       _future = repo.getById(widget.id);
     });
     await _future;
     await _loadAttachments();
+    _asset = null; _location = null; _assetIdLoaded = null; _locationIdLoaded = null;
   }
 
   Future<void> _loadAttachments() async {
@@ -62,8 +119,13 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
       final picker = ImagePicker();
       final xfile = await picker.pickImage(source: source, imageQuality: 85, maxWidth: 2048);
       if (xfile == null) return;
-      final file = File(xfile.path);
-      await attachmentsRepo.upload(widget.id, file, filename: xfile.name);
+      if (kIsWeb) {
+        final bytes = await xfile.readAsBytes();
+        await attachmentsRepo.uploadBytes(widget.id, bytes, filename: xfile.name);
+      } else {
+        final file = File(xfile.path);
+        await attachmentsRepo.upload(widget.id, file, filename: xfile.name);
+      }
       await _loadAttachments();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo uploaded')));
@@ -76,9 +138,10 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Work Order'),
+        title: const Text('Work Order Details'),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -101,12 +164,22 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
             String two(int n) => n.toString().padLeft(2, '0');
             String fmtDate(DateTime? d) => d == null
                 ? '-'
-                : '${d.year}-${two(d.month)}-${two(d.day)}';
+                : '${two(d.day)}/${d.month}/${two(d.year % 100)}';
 
             final status = (wo.status ?? '').toLowerCase();
+            // ensure asset/location names are loaded
+            _ensureRefsLoaded(wo);
             // Lock checklist for Done and Review (and other final states)
             final isLocked =
                 status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
+            String toTitleCase(String s) {
+              if (s.trim().isEmpty) return s;
+              return s
+                  .split(RegExp(r'\s+'))
+                  .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+                  .join(' ');
+            }
+
             return ListView(
               padding: const EdgeInsets.only(bottom: 24),
               cacheExtent: 800,
@@ -117,12 +190,19 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(wo.title ?? 'Untitled',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
+                      Text(
+                        toTitleCase(wo.title ?? 'Untitled'),
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'ID: ${widget.id.split('-').first.toUpperCase()}',
+                        style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -131,12 +211,9 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                           if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
                           PriorityChip(wo.priority),
                           Chip(
-                            label: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('Due: '),
-                                Text(fmtDate(wo.dueDate)),
-                              ],
+                            label: Text(
+                              'Due: ${fmtDate(wo.dueDate)}',
+                              style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                             visualDensity: VisualDensity.compact,
                           ),
@@ -146,19 +223,56 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   ),
                 ),
 
-                // Key info
+                // Key Info
                 SectionCard(
-                  title: 'Key info',
+                  title: 'Key Info',
                   child: Column(
                     children: [
-                      _InfoRow(label: 'Status', value: (wo.status ?? '-')),
-                      _InfoRow(label: 'Priority', value: (wo.priority ?? '-')),
-                      _InfoRow(label: 'Due date', value: fmtDate(wo.dueDate)),
                       _InfoRow(label: 'Created', value: fmtDate(wo.createdDate ?? wo.createdAt)),
-                      _InfoRow(label: 'Assigned to', value: wo.assignedTo ?? '-'),
-                      _InfoRow(label: 'Requested by', value: wo.requestedBy ?? '-'),
-                      _InfoRow(label: 'Asset', value: wo.assetId ?? '-'),
-                      _InfoRow(label: 'Location', value: wo.locationId ?? '-'),
+                      _InfoRow(label: 'Due Date', value: fmtDate(wo.dueDate)),
+                      _InfoRow(label: 'Requested By', value: _requester?.fullName ?? '-'),
+                    ],
+                  ),
+                ),
+
+                // Asset & Location moved into its own container
+                SectionCard(
+                  title: 'Asset & Location',
+                  child: Column(
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Asset', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                        subtitle: Text(((_asset?.assetId ?? '-')).toUpperCase()),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: (_asset?.assetId ?? '').isEmpty
+                            ? null
+                            : () {
+                                final aid = _asset!.id;
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AssetDetailsPage(id: aid),
+                                  ),
+                                );
+                              },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Location', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                        subtitle: Text(((_location?.locationId ?? '-')).toUpperCase()),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: (_location?.locationId ?? '').isEmpty
+                            ? null
+                            : () {
+                                final humanId = _location!.locationId;
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => LocationDetailsPage(locationId: humanId),
+                                  ),
+                                );
+                              },
+                      ),
                     ],
                   ),
                 ),
@@ -263,11 +377,18 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                           )),
                       const SizedBox(height: 8),
                       FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
                         onPressed: (!isLocked && _tasks.every((t) => t.done))
                             ? () async {
                                 // TODO: call repository to mark as completed
                                 if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job marked as completed')));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Thank you. Work order now is being reviewed')),
+                                );
                               }
                             : null,
                         icon: const Icon(Icons.check_circle),
@@ -304,7 +425,15 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          SizedBox(width: 120, child: Text(label, style: textTheme.bodyMedium?.copyWith(color: color))),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              label,
+              style: textTheme.bodyMedium?.copyWith(color: color),
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(value, style: textTheme.bodyMedium)),
         ],

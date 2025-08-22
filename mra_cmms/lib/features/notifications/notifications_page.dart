@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../repositories/notifications_repository.dart';
 import '../../models/activity_notification.dart';
 import 'dart:async';
+import '../../core/widgets/responsive_constraints.dart';
 
 // Top-level helpers (pure) so UI building widgets can reuse them without accessing State
 String _timeAgo(DateTime dt, {DateTime? now}) {
@@ -198,41 +199,49 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             ? const Center(child: CircularProgressIndicator())
             : (_filteredItems.isEmpty
                 ? const Center(child: Text('No notifications'))
-                : Column(
-                    children: [
-                      _FilterChipsRow(
-                        selected: _filter,
-                        onChanged: (f) {
-                          setState(() {
-                            _filter = f;
-                            _recomputeRows();
-                          });
-                        },
+                : CustomScrollView(
+                    controller: _scrollController,
+                    cacheExtent: 800,
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: ResponsiveConstraints(
+                          child: Column(
+                            children: [
+                              _FilterChipsRow(
+                                selected: _filter,
+                                onChanged: (f) {
+                                  setState(() {
+                                    _filter = f;
+                                    _recomputeRows();
+                                  });
+                                },
+                              ),
+                              const Divider(height: 1),
+                            ],
+                          ),
+                        ),
                       ),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: ListView.custom(
-                          controller: _scrollController,
-                          cacheExtent: 800,
-                          childrenDelegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              if (i == _rows.length) {
-                                return _loadingMore ? const _LoadingMoreIndicator() : const SizedBox.shrink();
-                              }
-                              final row = _rows[i];
-                              if (row is String) {
-                                return _DateHeaderLabel(text: row);
-                              }
-                              final n = row as ActivityNotification;
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            if (i == _rows.length) {
+                              return _loadingMore ? const _LoadingMoreIndicator() : const SizedBox.shrink();
+                            }
+                            final row = _rows[i];
+                            if (row is String) {
+                              return ResponsiveConstraints(child: _DateHeaderLabel(text: row));
+                            }
+                            final n = row as ActivityNotification;
 
-                              final bool showDivider = () {
-                                final isLast = i == _rows.length - 1;
-                                if (isLast) return _loadingMore; // hide if loading row follows
-                                final next = _rows[i + 1];
-                                return next is! String;
-                              }();
+                            final bool showDivider = () {
+                              final isLast = i == _rows.length - 1;
+                              if (isLast) return _loadingMore; // hide if loading row follows
+                              final next = _rows[i + 1];
+                              return next is! String;
+                            }();
 
-                              return _NotificationRow(
+                            return ResponsiveConstraints(
+                              child: _NotificationRow(
                                 n: n,
                                 now: _now,
                                 onTap: () async {
@@ -256,13 +265,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   }
                                 },
                                 showDivider: showDivider,
-                              );
-                            },
-                            childCount: _rows.length + (_loadingMore ? 1 : 0),
-                            addAutomaticKeepAlives: false,
-                            addRepaintBoundaries: true,
-                            addSemanticIndexes: true,
-                          ),
+                              ),
+                            );
+                          },
+                          childCount: _rows.length + (_loadingMore ? 1 : 0),
+                          addAutomaticKeepAlives: false,
+                          addRepaintBoundaries: true,
+                          addSemanticIndexes: true,
                         ),
                       ),
                     ],

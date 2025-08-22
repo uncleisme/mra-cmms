@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mra_cmms/models/work_order.dart';
 import 'package:mra_cmms/repositories/work_orders_repository.dart';
 import 'package:mra_cmms/repositories/assets_repository.dart';
@@ -15,6 +16,7 @@ import 'package:mra_cmms/core/widgets/section_card.dart';
 import 'package:mra_cmms/core/widgets/status_chip.dart';
 import 'package:mra_cmms/core/widgets/priority_chip.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mra_cmms/core/widgets/responsive_constraints.dart';
 
 class WorkOrderDetailsPage extends ConsumerStatefulWidget {
   final String id;
@@ -143,263 +145,263 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
       appBar: AppBar(
         title: const Text('Work Order Details'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<WorkOrder?>(
-          future: _future,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final wo = snap.data;
-            if (wo == null) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 80),
-                  Center(child: Text('Work order not found')),
-                ],
-              );
-            }
-
-            String two(int n) => n.toString().padLeft(2, '0');
-            String fmtDate(DateTime? d) => d == null
-                ? '-'
-                : '${two(d.day)}/${d.month}/${two(d.year % 100)}';
-
-            final status = (wo.status ?? '').toLowerCase();
-            // ensure asset/location names are loaded
-            _ensureRefsLoaded(wo);
-            // Lock checklist for Done and Review (and other final states)
-            final isLocked =
-                status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
-            String toTitleCase(String s) {
-              if (s.trim().isEmpty) return s;
-              return s
-                  .split(RegExp(r'\s+'))
-                  .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
-                  .join(' ');
-            }
-
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 24),
-              cacheExtent: 800,
-              children: [
-                // Header section
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        toTitleCase(wo.title ?? 'Untitled'),
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'ID: ${widget.id.split('-').first.toUpperCase()}',
-                        style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                          PriorityChip(wo.priority),
-                          Chip(
-                            label: Text(
-                              'Due: ${fmtDate(wo.dueDate)}',
-                              style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Key Info
-                SectionCard(
-                  title: 'Key Info',
-                  child: Column(
-                    children: [
-                      _InfoRow(label: 'Created', value: fmtDate(wo.createdDate ?? wo.createdAt)),
-                      _InfoRow(label: 'Due Date', value: fmtDate(wo.dueDate)),
-                      _InfoRow(label: 'Requested By', value: _requester?.fullName ?? '-'),
-                    ],
-                  ),
-                ),
-
-                // Asset & Location moved into its own container
-                SectionCard(
-                  title: 'Asset & Location',
-                  child: Column(
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('Asset', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                        subtitle: Text(((_asset?.assetId ?? '-')).toUpperCase()),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: (_asset?.assetId ?? '').isEmpty
-                            ? null
-                            : () {
-                                final aid = _asset!.id;
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => AssetDetailsPage(id: aid),
-                                  ),
-                                );
-                              },
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('Location', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                        subtitle: Text(((_location?.locationId ?? '-')).toUpperCase()),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: (_location?.locationId ?? '').isEmpty
-                            ? null
-                            : () {
-                                final humanId = _location!.locationId;
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => LocationDetailsPage(locationId: humanId),
-                                  ),
-                                );
-                              },
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Description
-                if ((wo.description ?? '').isNotEmpty)
-                  SectionCard(
-                    title: 'Description',
-                    child: Text(
-                      wo.description!,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-
-                // Placeholders for future sections
-                SectionCard(
-                  title: 'Attachments',
-                  actions: [
-                    IconButton(
-                      tooltip: 'Add from camera',
-                      onPressed: () => _pickAndUpload(ImageSource.camera),
-                      icon: const Icon(Icons.photo_camera_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Add from gallery',
-                      onPressed: () => _pickAndUpload(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_outlined),
-                    ),
+      body: ResponsiveConstraints(
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: FutureBuilder<WorkOrder?>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final wo = snap.data;
+              if (wo == null) {
+                return ListView(
+                  children: const [
+                    SizedBox(height: 80),
+                    Center(child: Text('Work order not found')),
                   ],
-                  child: _attachmentUrls.isEmpty
-                      ? Text('No attachments', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            const crossAxisCount = 3;
-                            const spacing = 8.0;
-                            final cellWidth = ((constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).floor();
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: spacing,
-                                mainAxisSpacing: spacing,
+                );
+              }
+
+              String two(int n) => n.toString().padLeft(2, '0');
+              String fmtDate(DateTime? d) => d == null
+                  ? '-'
+                  : '${two(d.day)}/${d.month}/${two(d.year % 100)}';
+
+              final status = (wo.status ?? '').toLowerCase();
+              // ensure asset/location names are loaded
+              _ensureRefsLoaded(wo);
+              // Lock checklist for Done and Review (and other final states)
+              final isLocked =
+                  status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
+              String toTitleCase(String s) {
+                if (s.trim().isEmpty) return s;
+                return s
+                    .split(RegExp(r'\s+'))
+                    .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+                    .join(' ');
+              }
+
+              return ListView(
+                padding: const EdgeInsets.only(bottom: 24),
+                cacheExtent: 800,
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  // Header section
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          toTitleCase(wo.title ?? 'Untitled'),
+                          style: textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'ID: ${widget.id.split('-').first.toUpperCase()}',
+                          style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                            PriorityChip(wo.priority),
+                            Chip(
+                              label: Text(
+                                'Due: ${fmtDate(wo.dueDate)}',
+                                style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
                               ),
-                              itemCount: _attachmentUrls.length,
-                              itemBuilder: (context, index) {
-                                final url = _attachmentUrls[index];
-                                return RepaintBoundary(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: InkWell(
-                                      onTap: () => showDialog(
-                                        context: context,
-                                        builder: (_) => Dialog(
-                                          child: InteractiveViewer(
-                                            child: Image.network(url, fit: BoxFit.contain),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Key Info
+                  SectionCard(
+                    title: 'Key Info',
+                    child: Column(
+                      children: [
+                        _InfoRow(label: 'Created', value: fmtDate(wo.createdDate ?? wo.createdAt)),
+                        _InfoRow(label: 'Due Date', value: fmtDate(wo.dueDate)),
+                        _InfoRow(label: 'Requested By', value: _requester?.fullName ?? '-'),
+                      ],
+                    ),
+                  ),
+
+                  // Asset & Location moved into its own container
+                  SectionCard(
+                    title: 'Asset & Location',
+                    child: Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('Asset', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                          subtitle: Text(((_asset?.assetId ?? '-')).toUpperCase()),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: (_asset?.assetId ?? '').isEmpty
+                              ? null
+                              : () {
+                                  final aid = _asset!.id;
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => AssetDetailsPage(id: aid),
+                                    ),
+                                  );
+                                },
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('Location', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                          subtitle: Text(((_location?.locationId ?? '-')).toUpperCase()),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: (_location?.locationId ?? '').isEmpty
+                              ? null
+                              : () {
+                                  final humanId = _location!.locationId;
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => LocationDetailsPage(locationId: humanId),
+                                    ),
+                                  );
+                                },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Description
+                  if ((wo.description ?? '').isNotEmpty)
+                    SectionCard(
+                      title: 'Description',
+                      child: Text(
+                        wo.description!,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+
+                  // Placeholders for future sections
+                  SectionCard(
+                    title: 'Attachments',
+                    actions: [
+                      IconButton(
+                        tooltip: 'Add from camera',
+                        onPressed: () => _pickAndUpload(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Add from gallery',
+                        onPressed: () => _pickAndUpload(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_outlined),
+                      ),
+                    ],
+                    child: _attachmentUrls.isEmpty
+                        ? Text('No attachments', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              const crossAxisCount = 3;
+                              const spacing = 8.0;
+                              final cellWidth = ((constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).floor();
+                              return GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: spacing,
+                                  mainAxisSpacing: spacing,
+                                ),
+                                itemCount: _attachmentUrls.length,
+                                itemBuilder: (context, index) {
+                                  final url = _attachmentUrls[index];
+                                  return RepaintBoundary(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: InkWell(
+                                        onTap: () => showDialog(
+                                          context: context,
+                                          builder: (_) => Dialog(
+                                            child: InteractiveViewer(
+                                              child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      child: Image.network(
-                                        url,
-                                        fit: BoxFit.cover,
-                                        cacheWidth: cellWidth, // downscale decode to cell size
-                                        filterQuality: FilterQuality.low,
+                                        child: CachedNetworkImage(
+                                          imageUrl: url,
+                                          fit: BoxFit.cover,
+                                          memCacheWidth: cellWidth, // downscale decode to cell size
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                ),
-                SectionCard(
-                  title: 'Activity',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('No activity yet', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
                   ),
-                ),
-
-                // Completion checklist and action
-                SectionCard(
-                  title: 'Completion',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isLocked)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text('This job is completed. Checklist is read-only.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                        ),
-                      ..._tasks.map((t) => CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: Text(t.title),
-                            value: t.done,
-                            onChanged: isLocked ? null : (v) => setState(() => t.done = v ?? false),
-                          )),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        onPressed: (!isLocked && _tasks.every((t) => t.done))
-                            ? () async {
-                                // TODO: call repository to mark as completed
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Thank you. Work order now is being reviewed')),
-                                );
-                              }
-                            : null,
-                        icon: const Icon(Icons.check_circle),
-                        label: const Text('Complete job'),
-                      ),
-                    ],
+                  SectionCard(
+                    title: 'Activity',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('No activity yet', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
+                  SectionCard(
+                    title: 'Completion',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isLocked)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text('This job is completed. Checklist is read-only.',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                          ),
+                        ..._tasks.map((t) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(t.title),
+                              value: t.done,
+                              onChanged: isLocked ? null : (v) => setState(() => t.done = v ?? false),
+                            )),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          onPressed: (!isLocked && _tasks.every((t) => t.done))
+                              ? () async {
+                                  // TODO: call repository to mark as completed
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Thank you. Work order now is being reviewed')),
+                                  );
+                                }
+                              : null,
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text('Complete job'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

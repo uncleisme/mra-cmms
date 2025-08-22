@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart' as mime;
 import '../../models/profile.dart';
 import '../../repositories/profiles_repository.dart';
+import '../../core/widgets/responsive_constraints.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -128,7 +130,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                           radius: 44,
                                           backgroundColor: Colors.white24,
                                           backgroundImage: (p.avatarUrl != null && p.avatarUrl!.isNotEmpty)
-                                              ? NetworkImage(p.avatarUrl!)
+                                              ? CachedNetworkImageProvider(p.avatarUrl!)
                                               : null,
                                           child: (p.avatarUrl == null || p.avatarUrl!.isEmpty)
                                               ? const Icon(Icons.person, size: 44, color: Colors.white)
@@ -179,85 +181,87 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                    child: Column(
-                      children: [
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Account', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 8),
-                                ListTile(
-                                  leading: const Icon(Icons.email_outlined),
-                                  title: const Text('Email'),
-                                  subtitle: Text(p.email ?? '-'),
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.badge_outlined),
-                                  title: const Text('Role'),
-                                  subtitle: Text(p.type ?? '-'),
-                                ),
-                                if (p.createdAt != null)
+                  child: ResponsiveConstraints(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+                      child: Column(
+                        children: [
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Account', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 8),
                                   ListTile(
-                                    leading: const Icon(Icons.calendar_today_outlined),
-                                    title: const Text('Joined'),
-                                    subtitle: Text(fmt(p.createdAt!)),
+                                    leading: const Icon(Icons.email_outlined),
+                                    title: const Text('Email'),
+                                    subtitle: Text(p.email ?? '-'),
                                   ),
+                                  ListTile(
+                                    leading: const Icon(Icons.badge_outlined),
+                                    title: const Text('Role'),
+                                    subtitle: Text(p.type ?? '-'),
+                                  ),
+                                  if (p.createdAt != null)
+                                    ListTile(
+                                      leading: const Icon(Icons.calendar_today_outlined),
+                                      title: const Text('Joined'),
+                                      subtitle: Text(fmt(p.createdAt!)),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Card(
+                            child: Column(
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.edit_outlined),
+                                  title: const Text('Edit name'),
+                                  subtitle: const Text('Update your display name'),
+                                  onTap: () => _editName(p),
+                                ),
+                                const Divider(height: 1),
+                                ListTile(
+                                  leading: const Icon(Icons.image_outlined),
+                                  title: const Text('Change photo'),
+                                  subtitle: const Text('Upload a new profile picture'),
+                                  onTap: _changePhoto,
+                                ),
+                                const Divider(height: 1),
+                                ListTile(
+                                  leading: const Icon(Icons.logout),
+                                  title: const Text('Sign out'),
+                                  subtitle: const Text('Sign out of your account'),
+                                  onTap: () async {
+                                    final navigator = Navigator.of(context);
+                                    final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('Sign out?'),
+                                            content: const Text('Are you sure you want to sign out?'),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+                                            ],
+                                          ),
+                                        ) ??
+                                        false;
+                                    if (!confirm) return;
+                                    await Supabase.instance.client.auth.signOut();
+                                    if (!mounted) return;
+                                    navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+                                  },
+                                ),
                               ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Column(
-                            children: [
-                              ListTile(
-                                leading: const Icon(Icons.edit_outlined),
-                                title: const Text('Edit name'),
-                                subtitle: const Text('Update your display name'),
-                                onTap: () => _editName(p),
-                              ),
-                              const Divider(height: 1),
-                              ListTile(
-                                leading: const Icon(Icons.image_outlined),
-                                title: const Text('Change photo'),
-                                subtitle: const Text('Upload a new profile picture'),
-                                onTap: _changePhoto,
-                              ),
-                              const Divider(height: 1),
-                              ListTile(
-                                leading: const Icon(Icons.logout),
-                                title: const Text('Sign out'),
-                                subtitle: const Text('Sign out of your account'),
-                                onTap: () async {
-                                  final navigator = Navigator.of(context);
-                                  final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Sign out?'),
-                                          content: const Text('Are you sure you want to sign out?'),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
-                                          ],
-                                        ),
-                                      ) ??
-                                      false;
-                                  if (!confirm) return;
-                                  await Supabase.instance.client.auth.signOut();
-                                  if (!mounted) return;
-                                  navigator.pushNamedAndRemoveUntil('/login', (_) => false);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
+                          const SizedBox(height: 24),
+                        ],
+                      ),
                     ),
                   ),
                 ),

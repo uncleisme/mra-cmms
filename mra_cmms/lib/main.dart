@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:animations/animations.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'core/supabase_config.dart';
 import 'core/hive_init.dart';
 import 'repositories/work_orders_repository.dart';
@@ -30,6 +30,7 @@ import 'core/widgets/section_card.dart';
 import 'core/widgets/skeleton_box.dart';
 import 'features/orders/work_order_details_page.dart';
 import 'features/notifications/notifications_page.dart';
+import 'core/widgets/responsive_constraints.dart';
 
 // Shared lightweight helpers to reduce allocations in build methods
 String titleCase(String input) {
@@ -260,94 +261,181 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(kpisProvider);
     final todaysOrders = ref.watch(todaysOrdersProvider);
+    final recent = ref.watch(recentNotificationsProvider);
     final profile = ref.watch(myProfileProvider);
-    
+    // Precompute current time once per build
+    final now = DateTime.now();
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: SafeArea(
-              bottom: false,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.fromLTRB(16, 36, 16, 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          profile.when(
-                            data: (p) {
-                              final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
-                              final hour = DateTime.now().hour;
-                              final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-                              return Text(
-                                '$greeting, $name',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              );
-                            },
-                            loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
-                            error: (e, st) => const Text('Welcome'),
-                          ),
-                          // Date/time removed per request
-                        ],
-                      ),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          child: ResponsiveConstraints(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Gradient header
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    MediaQuery.sizeOf(context).width < 400 ? 24.0 : 28.0,
+                    16,
+                    MediaQuery.sizeOf(context).width < 400 ? 16.0 : 20.0,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    IconButton(
-                      tooltip: 'Notifications',
-                      onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                      icon: const Icon(Icons.notifications_none),
-                    ),
-                    const SizedBox(width: 4),
-                    profile.when(
-                      data: (p) {
-                        final avatarUrl = p?.avatarUrl;
-                        return InkWell(
-                          onTap: () => Navigator.pushNamed(context, '/profile'),
-                          borderRadius: BorderRadius.circular(28),
-                          child: CircleAvatar(
-                            radius: 24,
-                            backgroundColor: Colors.transparent,
-                            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-                            child: (avatarUrl == null || avatarUrl.isEmpty)
-                                ? const Icon(Icons.person_outline, size: 24)
-                                : null,
-                          ),
-                        );
-                      },
-                      loading: () => const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.transparent,
-                        child: Icon(Icons.person_outline, size: 24),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            profile.when(
+                              data: (p) {
+                                final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
+                                final hour = now.hour;
+                                final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                                return Text(
+                                  '$greeting, $name',
+                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) *
+                                            (MediaQuery.sizeOf(context).width >= 700 ? 1.1 : 1.0),
+                                      ),
+                                );
+                              },
+                              loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
+                              error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                            ),
+                          ],
+                        ),
                       ),
-                      error: (e, st) => const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.transparent,
-                        child: Icon(Icons.person_outline, size: 24),
+                      IconButton(
+                        tooltip: 'Notifications',
+                        onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                        icon: const Icon(Icons.notifications_none, color: Colors.white),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      profile.when(
+                        data: (p) {
+                          final avatarUrl = p?.avatarUrl;
+                          return InkWell(
+                            onTap: () => Navigator.pushNamed(context, '/profile'),
+                            borderRadius: BorderRadius.circular(28),
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: Colors.white,
+                              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                                  ? CachedNetworkImageProvider(avatarUrl)
+                                  : null,
+                              child: (avatarUrl == null || avatarUrl.isEmpty)
+                                  ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
+                                  : null,
+                            ),
+                          );
+                        },
+                        loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+                        error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: todaysOrders.when(
-              data: (items) {
+
+                // Quick actions
+                LayoutBuilder(builder: (context, c) {
+                  final w = c.maxWidth;
+                  final isCompact = w < 420;
+                  if (isCompact) {
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.pushNamed(context, '/orders'),
+                            icon: const Icon(Icons.add_task),
+                            label: const Text('New order'),
+                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                          ),
+                        ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pushNamed(context, '/orders'),
+                            icon: const Icon(Icons.list_alt),
+                            label: const Text('My orders'),
+                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                          ),
+                        ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pushNamed(context, '/leaves'),
+                            icon: const Icon(Icons.beach_access_outlined),
+                            label: const Text('Leaves'),
+                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pushNamed(context, '/orders'),
+                          icon: const Icon(Icons.add_task),
+                          label: const Text('New order'),
+                          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pushNamed(context, '/orders'),
+                          icon: const Icon(Icons.list_alt),
+                          label: const Text('My orders'),
+                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pushNamed(context, '/leaves'),
+                          icon: const Icon(Icons.beach_access_outlined),
+                          label: const Text('Leaves'),
+                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 16),
+                todaysOrders.when(
+                  data: (items) {
                 bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
                 bool isToday(DateTime? d) {
                   if (d == null) return false;
-                  final now = DateTime.now();
                   final local = d.toLocal();
                   return isSameDay(local, now);
                 }
-                DateTime? effectiveDate(wo) {
+                DateTime? eff(wo) {
                   final status = (wo.status ?? '').toLowerCase();
                   final dueToday = isToday(wo.dueDate);
                   final completed = status == 'completed' || status == 'done' || status == 'closed';
@@ -356,148 +444,63 @@ class DashboardPage extends ConsumerWidget {
                   if (nextToday) return wo.nextScheduledDate?.toLocal();
                   return null;
                 }
-                final todayRelevant = items.where((wo) => effectiveDate(wo) != null).toList();
+                final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
+                final todayRelevant = withEff.where((e) => e.$2 != null).toList();
                 todayRelevant.sort((a, b) {
-                  final ad = effectiveDate(a);
-                  final bd = effectiveDate(b);
-                  if (ad == null && bd == null) return 0;
-                  if (ad == null) return 1;
-                  if (bd == null) return -1;
+                  final ad = a.$2!;
+                  final bd = b.$2!;
                   return ad.compareTo(bd);
                 });
                 final visible = todayRelevant.take(5).toList();
                 return SectionCard(
-                  title: "Today's Order",
+                  title: "Today's orders",
                   filled: true,
-                  backgroundColor: const Color(0xFF08234F),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.fromLTRB(12, 18, 12, 18),
-                  titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 2.1,
-                        color: Colors.white,
-                      ),
+                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                  padding: EdgeInsets.fromLTRB(
+                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                    MediaQuery.sizeOf(context).width < 360 ? 10 : 14,
+                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                  ),
+                  titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   count: todayRelevant.length,
                   onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                  child: (visible.isEmpty)
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Expanded(
-                              flex: 7,
-                              child: ListTile(
-                                title: Text('No orders for today'),
-                                subtitle: Text('You are all caught up.'),
-                              ),
-                            ),
-                            Flexible(
-                              flex: 3,
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.9,
-                                  child: AspectRatio(
-                                    aspectRatio: 1,
-                                    child: Image.network(
-                                      'https://cdn-icons-png.flaticon.com/512/10692/10692035.png',
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 7,
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: visible.length,
-                                separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.white24),
-                                itemBuilder: (context, i) {
-                                  final wo = visible[i];
-                                  return RepaintBoundary(
-                                    child: OpenContainer(
-                                      transitionType: ContainerTransitionType.fadeThrough,
-                                      closedElevation: 0,
-                                      openElevation: 0,
-                                      closedColor: Colors.transparent,
-                                      openColor: Theme.of(context).scaffoldBackgroundColor,
-                                      closedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                                      openBuilder: (context, _) => WorkOrderDetailsPage(id: wo.id),
-                                      closedBuilder: (context, open) => ListTile(
-                                        dense: true,
-                                        visualDensity: VisualDensity.compact,
-                                        title: Text(
-                                          (() {
-                                            final raw = (wo.title ?? 'Untitled').trim();
-                                            final safe = raw.isEmpty ? 'Untitled' : raw;
-                                            return titleCase(safe);
-                                          })(),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.2,
-                                                color: Colors.white,
-                                              ),
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                                                const SizedBox(width: 8),
-                                                PriorityChip(wo.priority),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 10),
-                                            ConstrainedBox(
-                                              constraints: const BoxConstraints.tightFor(width: 160, height: 50),
-                                              child: FilledButton.icon(
-                                                onPressed: open,
-                                                style: FilledButton.styleFrom(
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                                                  textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                                        fontSize: (Theme.of(context).textTheme.labelLarge?.fontSize ?? 14) * 1.5,
-                                                      ),
-                                                ),
-                                                icon: const Icon(Icons.play_arrow, size: 30),
-                                                label: const Text('Start'),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        onTap: open,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            Flexible(
-                              flex: 3,
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.9,
-                                  child: AspectRatio(
-                                    aspectRatio: 1,
-                                    child: Image.network(
-                                      'https://cdn-icons-png.flaticon.com/512/10692/10692035.png',
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                  child: Builder(builder: (context) {
+                    if (visible.isEmpty) {
+                      return const ListTile(
+                        leading: Icon(Icons.inbox_outlined),
+                        title: Text('No orders for today'),
+                        subtitle: Text('You are all caught up.'),
+                      );
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: visible.length.clamp(0, 3),
+                      separatorBuilder: (_, i) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final wo = visible[i].$1;
+                        return ListTile(
+                          leading: const Icon(Icons.work_outline),
+                          title: Text(
+                            (() {
+                              final raw = (wo.title ?? 'Untitled').trim();
+                              final safe = raw.isEmpty ? 'Untitled' : raw;
+                              return titleCase(safe);
+                            })(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), PriorityChip(wo.priority)]),
+                          visualDensity: MediaQuery.sizeOf(context).width < 360
+                              ? const VisualDensity(vertical: -2)
+                              : VisualDensity.standard,
+                          trailing: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))), icon: const Icon(Icons.play_arrow), label: const Text('Start')),
+                        );
+                      },
+                    );
+                  }),
                 );
               },
               loading: () => SectionCard(
@@ -523,9 +526,7 @@ class DashboardPage extends ConsumerWidget {
                 child: const ListTile(title: Text("Failed to load today's orders")),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: kpis.when(
                 data: (v) {
@@ -549,56 +550,86 @@ class DashboardPage extends ConsumerWidget {
                       onTap: () => Navigator.pushNamed(context, '/orders'),
                     ),
                   ];
+                  return LayoutBuilder(builder: (context, constraints) {
+                    final w = constraints.maxWidth;
+                    final cols = w >= 1000 ? 4 : (w >= 700 ? 3 : 2);
+                    final aspect = w >= 700 ? 2.6 : 2.0;
+                    return GridView.builder(
+                      padding: const EdgeInsets.only(top: 8, bottom: 8),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: cards.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: cols,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: aspect,
+                      ),
+                      itemBuilder: (context, index) => cards[index],
+                    );
+                  });
+                },
+                loading: () => LayoutBuilder(builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final cols = w >= 1000 ? 4 : (w >= 700 ? 3 : 2);
+                  final aspect = w >= 700 ? 2.6 : 2.0;
                   return GridView.builder(
                     padding: const EdgeInsets.only(top: 8, bottom: 8),
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: cards.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                    itemCount: cols, // show one row of skeletons
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 2.2,
+                      childAspectRatio: aspect,
                     ),
-                    itemBuilder: (context, index) => cards[index],
+                    itemBuilder: (context, index) => const SkeletonBox(height: 64),
                   );
-                },
-                loading: () => GridView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: 2,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 2.2,
-                  ),
-                  itemBuilder: (context, index) => const SkeletonBox(height: 64),
-                ),
+                }),
                 error: (e, st) => const SizedBox.shrink(),
               ),
             ),
-          ),
-          
-          
-          SliverToBoxAdapter(
-            child: SectionCard(
-              title: "Today's leaves",
-              onSeeAll: () {
-                const fixedUid = '9022b441-6257-4d6b-ac9d-7461fa6db6dd';
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LeavesPage(userId: fixedUid)),
-                );
-              },
-              child: const _TodaysLeavesSection(userId: '9022b441-6257-4d6b-ac9d-7461fa6db6dd'),
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'Recent updates',
+              onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
+              child: recent.when(
+                data: (items) {
+                  if (items.isEmpty) {
+                    return const ListTile(title: Text('No recent updates'));
+                  }
+                  final visible = items.take(5).toList();
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: visible.length,
+                    separatorBuilder: (_, i) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final n = visible[i];
+                      return ListTile(
+                        leading: const Icon(Icons.notifications_active_outlined),
+                        title: Text(n.title ?? 'Notification'),
+                        subtitle: Text(n.message ?? ''),
+                        visualDensity: MediaQuery.sizeOf(context).width < 360
+                            ? const VisualDensity(vertical: -2)
+                            : VisualDensity.standard,
+                      );
+                    },
+                  );
+                },
+                loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                error: (e, st) => const ListTile(title: Text('Failed to load notifications')),
+              ),
             ),
-          ),
-          
-        ],
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
-      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
-    );
+    ),
+  ),
+  bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
+);
   }
 }
 
@@ -771,6 +802,8 @@ class _OrdersPageState extends State<OrdersPage> {
   String _query = '';
   String _sortKey = 'due'; // 'due' | 'priority' | 'status' | 'title'
   bool _ascending = false; // latest first by default
+  String? _statusFilter; // active | in_progress | review | done
+  String? _datePreset; // null=all time | today | week | month | next_month
 
   @override
   void initState() {
@@ -892,97 +925,95 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
-  void _openSort() async {
-    final picked = await showModalBottomSheet<(String, bool)>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        String tempKey = _sortKey;
-        bool tempAsc = _ascending;
-        return StatefulBuilder(
-          builder: (context, setLocal) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const ListTile(title: Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600))),
-                    RadioListTile<String>(
-                      value: 'due',
-                      groupValue: tempKey,
-                      title: const Text('Due date'),
-                      onChanged: (v) => setLocal(() => tempKey = v!),
-                    ),
-                    RadioListTile<String>(
-                      value: 'priority',
-                      groupValue: tempKey,
-                      title: const Text('Priority'),
-                      onChanged: (v) => setLocal(() => tempKey = v!),
-                    ),
-                    RadioListTile<String>(
-                      value: 'status',
-                      groupValue: tempKey,
-                      title: const Text('Status'),
-                      onChanged: (v) => setLocal(() => tempKey = v!),
-                    ),
-                    RadioListTile<String>(
-                      value: 'title',
-                      groupValue: tempKey,
-                      title: const Text('Title'),
-                      onChanged: (v) => setLocal(() => tempKey = v!),
-                    ),
-                    const Divider(),
-                    SwitchListTile(
-                      value: tempAsc,
-                      title: const Text('Ascending'),
-                      onChanged: (v) => setLocal(() => tempAsc = v),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                        const Spacer(),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, (tempKey, tempAsc)),
-                          child: const Text('Apply'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() {
-        _sortKey = picked.$1;
-        _ascending = picked.$2;
-      });
-    }
-  }
+  // Sort UI moved into status chips; modal sort removed per new design.
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
         title: const Text('Orders'),
-        actions: [
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search),
-            onPressed: _openSearch,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        // Status chips
+                        ChoiceChip(
+                          label: const Text('All'),
+                          selected: _statusFilter == null,
+                          onSelected: (_) => setState(() => _statusFilter = null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Active'),
+                          selected: _statusFilter == 'active',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'active' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Review'),
+                          selected: _statusFilter == 'review',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'review' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Done'),
+                          selected: _statusFilter == 'done',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'done' : null),
+                        ),
+                        const SizedBox(width: 12),
+                        // Date preset chips
+                        ChoiceChip(
+                          label: const Text('All time'),
+                          selected: _datePreset == null,
+                          onSelected: (_) => setState(() => _datePreset = null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Today'),
+                          selected: _datePreset == 'today',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'today' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('This week'),
+                          selected: _datePreset == 'week',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'week' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('This month'),
+                          selected: _datePreset == 'month',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'month' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Next month'),
+                          selected: _datePreset == 'next_month',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'next_month' : null),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Search',
+                  icon: const Icon(Icons.search),
+                  onPressed: _openSearch,
+                ),
+              ],
+            ),
           ),
-          IconButton(
-            tooltip: 'Sort',
-            icon: const Icon(Icons.sort),
-            onPressed: _openSort,
-          ),
-        ],
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -999,6 +1030,58 @@ class _OrdersPageState extends State<OrdersPage> {
                 final s = (wo.status ?? '').toLowerCase();
                 final p = (wo.priority ?? '').toLowerCase();
                 return t.contains(q) || s.contains(q) || p.contains(q);
+              }).toList();
+            }
+            // Filter by selected status chip
+            if (_statusFilter != null && _statusFilter!.isNotEmpty) {
+              String norm(String? v) => (v ?? '').toLowerCase().replaceAll('_', ' ');
+              final target = norm(_statusFilter).trim();
+              items = items.where((wo) {
+                final s = norm(wo.status).trim();
+                if (target == 'active') {
+                  // active = active OR in progress
+                  return s == 'active' || s == 'in progress';
+                }
+                return s == target;
+              }).toList();
+            }
+            // Filter by date preset using dueDate or nextScheduledDate
+            if (_datePreset != null) {
+              final now = DateTime.now();
+              late DateTime start;
+              late DateTime end; // exclusive
+              switch (_datePreset) {
+                case 'today':
+                  start = DateTime(now.year, now.month, now.day);
+                  end = start.add(const Duration(days: 1));
+                  break;
+                case 'week':
+                  final weekday = now.weekday; // Mon=1..Sun=7
+                  start = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+                  end = start.add(const Duration(days: 7));
+                  break;
+                case 'month':
+                  start = DateTime(now.year, now.month, 1);
+                  end = (now.month == 12) ? DateTime(now.year + 1, 1, 1) : DateTime(now.year, now.month + 1, 1);
+                  break;
+                case 'next_month':
+                  final isDec = now.month == 12;
+                  final y = isDec ? now.year + 1 : now.year;
+                  final m = isDec ? 1 : now.month + 1;
+                  start = DateTime(y, m, 1);
+                  end = (m == 12) ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
+                  break;
+                default:
+                  start = DateTime.fromMillisecondsSinceEpoch(0);
+                  end = DateTime.fromMillisecondsSinceEpoch(0);
+              }
+              bool inRange(DateTime d) => !d.isBefore(start) && d.isBefore(end);
+              items = items.where((wo) {
+                final due = wo.dueDate;
+                final next = wo.nextScheduledDate;
+                if (due != null && inRange(due)) return true;
+                if (next != null && inRange(next)) return true;
+                return false;
               }).toList();
             }
             // Sort
@@ -1052,18 +1135,23 @@ class _OrdersPageState extends State<OrdersPage> {
                 onAction: _createOrder,
               );
             }
-            return ListView.custom(
-              physics: const AlwaysScrollableScrollPhysics(),
-              controller: _scrollController,
-              childrenDelegate: SliverChildBuilderDelegate(
-                (context, i) {
-                  if (i == items.length) {
-                    return _loadingMore
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : const SizedBox.shrink();
+            return LayoutBuilder(builder: (context, c) {
+              final w = c.maxWidth;
+              final compact = w < 380;
+              final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * (w >= 700 ? 1.15 : 1.0),
+                  );
+              return ListView.builder(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: items.length + ((_hasMore || _loadingMore) ? 1 : 0),
+                itemBuilder: (context, i) {
+                  if (i >= items.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
                   }
                   final wo = items[i];
                   String fmt(DateTime d) {
@@ -1072,60 +1160,75 @@ class _OrdersPageState extends State<OrdersPage> {
                     final mm = d.month.toString().padLeft(2, '0');
                     return '$dd/$mm/$yy';
                   }
-                  final isLast = i == items.length - 1;
-                  return RepaintBoundary(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        OpenContainer(
-                          transitionType: ContainerTransitionType.fadeThrough,
-                          closedElevation: 0,
-                          openElevation: 0,
-                          closedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                          openBuilder: (context, _) => WorkOrderDetailsPage(id: wo.id),
-                          closedBuilder: (context, open) => ListTile(
-                            title: Text(
-                              (() {
-                                final raw = (wo.title ?? 'Untitled').trim();
-                                final safe = raw.isEmpty ? 'Untitled' : raw;
-                                return titleCase(safe);
-                              })(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.2,
+                  return Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 6 : 8),
+                    child: Card(
+                      elevation: 0,
+                      color: Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Theme.of(context).dividerColor),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))),
+                        child: Padding(
+                          padding: EdgeInsets.all(compact ? 12 : 16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(Icons.assignment_outlined, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      (() {
+                                        final raw = (wo.title ?? 'Untitled').trim();
+                                        final safe = raw.isEmpty ? 'Untitled' : raw;
+                                        return titleCase(safe);
+                                      })(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: titleStyle,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      children: [
+                                        if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                                        PriorityChip(wo.priority),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('Due', style: TextStyle(fontSize: 12)),
+                                  Text(wo.dueDate == null ? '' : fmt(wo.dueDate!)),
+                                  const SizedBox(height: 6),
+                                  FilledButton.tonalIcon(
+                                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))),
+                                    icon: const Icon(Icons.visibility_outlined),
+                                    label: const Text('View'),
                                   ),
-                            ),
-                            subtitle: Row(
-                              children: [
-                                if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                                const SizedBox(width: 8),
-                                PriorityChip(wo.priority),
-                              ],
-                            ),
-                            trailing: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text('Due', style: TextStyle(fontSize: 12)),
-                                Text(wo.dueDate == null ? '' : fmt(wo.dueDate!)),
-                              ],
-                            ),
-                            onTap: open,
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                        if (!isLast) const Divider(height: 1),
-                      ],
+                      ),
                     ),
                   );
                 },
-                childCount: items.length + (_loadingMore ? 1 : 0),
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-                addSemanticIndexes: true,
-              ),
-            );
+              );
+            });
           },),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -1156,8 +1259,9 @@ class _LeavesPageState extends State<LeavesPage> {
   bool _initialLoading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
-  DateTime? _filterMonth; // month/year
-  String? _filterStatus; // approved, pending, rejected
+  String? _statusFilter; // approved, pending, rejected
+  String? _datePreset; // null=all time | today | week | month | next_month
+  String _query = '';
 
   @override
   void initState() {
@@ -1250,137 +1354,142 @@ class _LeavesPageState extends State<LeavesPage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create Leave coming soon')));
   }
 
+  void _openSearch() async {
+    final controller = TextEditingController(text: _query);
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            left: 16,
+            right: 16,
+            top: 12,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Search leaves', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Type, status, or reason',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (v) => Navigator.pop(context, v.trim()),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, ''),
+                    child: const Text('Clear'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, controller.text.trim()),
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result != null) {
+      setState(() => _query = result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
         title: const Text('Leaves'),
-        actions: [
-          IconButton(
-            tooltip: 'Search / Filter',
-            icon: const Icon(Icons.search),
-            onPressed: () async {
-              await showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                builder: (context) {
-                  String? localStatus = _filterStatus;
-                  DateTime? localMonth = _filterMonth;
-                  int? localMonthNum = localMonth?.month;
-                  int localYear = (localMonth?.year) ?? DateTime.now().year;
-                  return StatefulBuilder(builder: (context, setLocal) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Filter leaves', style: TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String?>(
-                                  value: localStatus,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(labelText: 'Status'),
-                                  items: const [
-                                    DropdownMenuItem<String?>(value: null, child: Text('All')),
-                                    DropdownMenuItem<String?>(value: 'approved', child: Text('Approved')),
-                                    DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
-                                    DropdownMenuItem<String?>(value: 'rejected', child: Text('Rejected')),
-                                  ],
-                                  onChanged: (v) => setLocal(() => localStatus = v),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<int>(
-                                  value: localYear,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(labelText: 'Year'),
-                                  items: () {
-                                    final nowY = DateTime.now().year;
-                                    final years = List<int>.generate(7, (i) => nowY - 5 + i); // [now-5 .. now+1]
-                                    return years
-                                        .map((y) => DropdownMenuItem<int>(value: y, child: Text(y.toString())))
-                                        .toList();
-                                  }(),
-                                  onChanged: (v) => setLocal(() => localYear = v ?? DateTime.now().year),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<int?>(
-                                  value: localMonthNum,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(labelText: 'Month'),
-                                  items: <DropdownMenuItem<int?>>[
-                                    const DropdownMenuItem<int?>(value: null, child: Text('All')),
-                                    const DropdownMenuItem<int?>(value: 1, child: Text('January')),
-                                    const DropdownMenuItem<int?>(value: 2, child: Text('February')),
-                                    const DropdownMenuItem<int?>(value: 3, child: Text('March')),
-                                    const DropdownMenuItem<int?>(value: 4, child: Text('April')),
-                                    const DropdownMenuItem<int?>(value: 5, child: Text('May')),
-                                    const DropdownMenuItem<int?>(value: 6, child: Text('June')),
-                                    const DropdownMenuItem<int?>(value: 7, child: Text('July')),
-                                    const DropdownMenuItem<int?>(value: 8, child: Text('August')),
-                                    const DropdownMenuItem<int?>(value: 9, child: Text('September')),
-                                    const DropdownMenuItem<int?>(value: 10, child: Text('October')),
-                                    const DropdownMenuItem<int?>(value: 11, child: Text('November')),
-                                    const DropdownMenuItem<int?>(value: 12, child: Text('December')),
-                                  ],
-                                  onChanged: (v) => setLocal(() { localMonthNum = v; localMonth = v == null ? null : DateTime(localYear, v, 1); }),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _filterMonth = localMonthNum == null ? null : DateTime(localYear, localMonthNum!, 1);
-                                      _filterStatus = localStatus;
-                                    });
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text('Apply'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              OutlinedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _filterMonth = null;
-                                    _filterStatus = null;
-                                  });
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('Reset'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                    );
-                  });
-                },
-              );
-            },
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        // Status chips (limit to Pending, Approved, Rejected)
+                        ChoiceChip(
+                          label: const Text('Pending'),
+                          selected: _statusFilter == 'pending',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'pending' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Approved'),
+                          selected: _statusFilter == 'approved',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'approved' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Rejected'),
+                          selected: _statusFilter == 'rejected',
+                          onSelected: (v) => setState(() => _statusFilter = v ? 'rejected' : null),
+                        ),
+                        const SizedBox(width: 12),
+                        // Date preset chips
+                        ChoiceChip(
+                          label: const Text('All time'),
+                          selected: _datePreset == null,
+                          onSelected: (_) => setState(() => _datePreset = null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Today'),
+                          selected: _datePreset == 'today',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'today' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('This week'),
+                          selected: _datePreset == 'week',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'week' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('This month'),
+                          selected: _datePreset == 'month',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'month' : null),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Next month'),
+                          selected: _datePreset == 'next_month',
+                          onSelected: (v) => setState(() => _datePreset = v ? 'next_month' : null),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Search',
+                  icon: const Icon(Icons.search),
+                  onPressed: _openSearch,
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -1388,33 +1497,49 @@ class _LeavesPageState extends State<LeavesPage> {
           if (_initialLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-          // Filter client-side by selected month (overlap) and status
+          // Filter client-side by query, selected date preset (overlap) and status
           final items = List.of(_items).where((lv) {
-              final matchesStatus = _filterStatus == null || _filterStatus!.isEmpty || lv.status == _filterStatus;
-              final matchesMonth = _filterMonth == null || (() {
-                final y = _filterMonth!.year;
-                final m = _filterMonth!.month;
-                final monthStart = DateTime(y, m, 1);
-                final monthEndExclusive = m == 12 ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
-                // Overlap if lv.endDate >= monthStart AND lv.startDate < monthEndExclusive
-                return !lv.endDate.isBefore(monthStart) && lv.startDate.isBefore(monthEndExclusive);
-              })();
-              return matchesStatus && matchesMonth;
+              final matchesQuery = () {
+                if (_query.isEmpty) return true;
+                final q = _query.toLowerCase();
+                final type = (lv.typeKey).toLowerCase();
+                final status = (lv.status).toLowerCase();
+                final reason = (lv.reason ?? '').toLowerCase();
+                return type.contains(q) || status.contains(q) || reason.contains(q);
+              }();
+              final matchesStatus = _statusFilter == null || _statusFilter!.isEmpty || lv.status == _statusFilter;
+              final matchesRange = () {
+                if (_datePreset == null) return true; // all time
+                DateTime now = DateTime.now();
+                DateTime start;
+                DateTime end; // exclusive
+                if (_datePreset == 'today') {
+                  start = DateTime(now.year, now.month, now.day);
+                  end = start.add(const Duration(days: 1));
+                } else if (_datePreset == 'week') {
+                  // Start of week: Monday
+                  final weekday = now.weekday; // Mon=1..Sun=7
+                  start = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+                  end = start.add(const Duration(days: 7));
+                } else if (_datePreset == 'month') {
+                  start = DateTime(now.year, now.month, 1);
+                  end = (now.month == 12) ? DateTime(now.year + 1, 1, 1) : DateTime(now.year, now.month + 1, 1);
+                } else if (_datePreset == 'next_month') {
+                  final isDec = now.month == 12;
+                  final y = isDec ? now.year + 1 : now.year;
+                  final m = isDec ? 1 : now.month + 1;
+                  start = DateTime(y, m, 1);
+                  end = (m == 12) ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
+                } else {
+                  return true;
+                }
+                // Overlap if lv.endDate >= start AND lv.startDate < end
+                return !lv.endDate.isBefore(start) && lv.startDate.isBefore(end);
+              }();
+              return matchesQuery && matchesStatus && matchesRange;
             }).toList();
-            // Sort: when no month filter -> by month (desc) then start date (desc)
-            //       when month filter applied -> by start date (desc)
-            items.sort((a, b) {
-              int monthKey(DateTime d) => d.year * 100 + d.month;
-              if (_filterMonth == null) {
-                final mkB = monthKey(b.startDate);
-                final mkA = monthKey(a.startDate);
-                final byMonth = mkB.compareTo(mkA);
-                if (byMonth != 0) return byMonth;
-                return b.startDate.compareTo(a.startDate);
-              } else {
-                return b.startDate.compareTo(a.startDate);
-              }
-            });
+            // Sort: by start date (desc)
+            items.sort((a, b) => b.startDate.compareTo(a.startDate));
             if (items.isEmpty) {
               return EmptyState(
                 icon: Icons.beach_access_outlined,
@@ -1424,97 +1549,135 @@ class _LeavesPageState extends State<LeavesPage> {
                 onAction: _createLeave,
               );
             }
-            return ListView.custom(
-              physics: const AlwaysScrollableScrollPhysics(),
-              controller: _scrollController,
-              childrenDelegate: SliverChildBuilderDelegate(
-                (context, i) {
-                  if (i == items.length) {
-                    return _loadingMore
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : const SizedBox.shrink();
-                  }
-                  final lv = items[i];
-                  String fmt(DateTime d) {
-                    final yy = (d.year % 100).toString().padLeft(2, '0');
-                    final dd = d.day.toString().padLeft(2, '0');
-                    final mm = d.month.toString().padLeft(2, '0');
-                    return '$dd/$mm/$yy';
-                  }
-                  final start = fmt(lv.startDate);
-                  final end = fmt(lv.endDate);
-                  final totalDays = (() {
-                    final d = lv.endDate.difference(lv.startDate).inDays + 1; // inclusive
-                    return d < 1 ? 1 : d;
-                  })();
-                  final isLast = i == items.length - 1;
-                  bool isNewMonth() {
-                    if (i == 0) return true;
-                    if (_filterMonth != null) return i == 0; // show one header when filtering by a specific month
-                    final prev = items[i - 1];
-                    return prev.startDate.year != lv.startDate.year || prev.startDate.month != lv.startDate.month;
-                  }
-                  String monthLabel(DateTime d) {
-                    const names = [
-                      'January','February','March','April','May','June','July','August','September','October','November','December'
-                    ];
-                    return '${names[d.month - 1]} ${d.year}';
-                  }
-                  return RepaintBoundary(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isNewMonth())
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                            child: Text(
-                              monthLabel(lv.startDate),
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                            ),
-                          ),
-                        ListTile(
-                          title: Text(
-                            () {
-                              final s = (lv.typeKey).trim();
-                              if (s.isEmpty) return s;
-                              return s[0].toUpperCase() + s.substring(1).toLowerCase();
-                            }(),
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            '$start to $end  ($totalDays ${totalDays == 1 ? 'day' : 'days'})',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          isThreeLine: false,
-                          minVerticalPadding: 8,
-                          trailing: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
+            Color _statusBg(String s, BuildContext c) {
+              final cs = Theme.of(c).colorScheme;
+              switch (s.toLowerCase()) {
+                case 'approved':
+                  return cs.secondaryContainer;
+                case 'rejected':
+                  return cs.errorContainer;
+                case 'pending':
+                default:
+                  return cs.tertiaryContainer;
+              }
+            }
+            Color _statusFg(String s, BuildContext c) {
+              final cs = Theme.of(c).colorScheme;
+              switch (s.toLowerCase()) {
+                case 'approved':
+                  return cs.onSecondaryContainer;
+                case 'rejected':
+                  return cs.onErrorContainer;
+                case 'pending':
+                default:
+                  return cs.onTertiaryContainer;
+              }
+            }
+            String _cap(String s) {
+              final t = s.trim();
+              if (t.isEmpty) return t;
+              return t[0].toUpperCase() + t.substring(1).toLowerCase();
+            }
+            String fmt(DateTime d) {
+              final yy = (d.year % 100).toString().padLeft(2, '0');
+              final dd = d.day.toString().padLeft(2, '0');
+              final mm = d.month.toString().padLeft(2, '0');
+              return '$dd/$mm/$yy';
+            }
+            return LayoutBuilder(
+              builder: (context, c) {
+                final w = c.maxWidth;
+                final pad = w < 380 ? 12.0 : 16.0;
+                final titleSize = (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * (w >= 700 ? 1.05 : 1.0);
+                return ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  controller: _scrollController,
+                  itemCount: items.length + (_loadingMore ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (i == items.length) {
+                      return _loadingMore
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : const SizedBox.shrink();
+                    }
+                    final lv = items[i];
+                    final start = fmt(lv.startDate);
+                    final end = fmt(lv.endDate);
+                    final totalDays = (() {
+                      final d = lv.endDate.difference(lv.startDate).inDays + 1; // inclusive
+                      return d < 1 ? 1 : d;
+                    })();
+                    final bg = _statusBg(lv.status, context);
+                    final fg = _statusFg(lv.status, context);
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(12, i == 0 ? 12 : 6, 12, 6),
+                      child: Card(
+                        clipBehavior: Clip.antiAlias,
+                        child: Padding(
+                          padding: EdgeInsets.all(pad),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              StatusChip(lv.status),
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                                child: const Icon(Icons.beach_access_outlined),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _cap(lv.typeKey),
+                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: titleSize,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: bg,
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            _cap(lv.status),
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                  color: fg,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '$start → $end  ·  $totalDays ${totalDays == 1 ? 'day' : 'days'}',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        if (!isLast) const Divider(height: 1),
-                      ],
-                    ),
-                  );
-                },
-                childCount: items.length + (_loadingMore ? 1 : 0),
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-                addSemanticIndexes: true,
-              ),
+                      ),
+                    );
+                  },
+                );
+              },
             );
           },),
       ),

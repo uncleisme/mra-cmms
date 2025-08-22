@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mra_cmms/repositories/assets_repository.dart';
 import 'package:mra_cmms/features/assets/asset_details_page.dart';
+import 'package:mra_cmms/core/widgets/responsive_constraints.dart';
 
 class AssetsPage extends StatefulWidget {
   const AssetsPage({super.key});
@@ -97,52 +98,54 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Assets')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Search assets by name or code',
-                prefixIcon: Icon(Icons.search),
-                isDense: true,
+      body: ResponsiveConstraints(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Search assets by name or code',
+                  prefixIcon: Icon(Icons.search),
+                  isDense: true,
+                ),
+                onChanged: _onSearchChanged,
+                textInputAction: TextInputAction.search,
               ),
-              onChanged: _onSearchChanged,
-              textInputAction: TextInputAction.search,
             ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _onRefresh,
-              child: _loading && _items.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      controller: _scrollController,
-                      itemCount: _items.length + (_loadingMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final a = _items[index];
-                        return ListTile(
-                          title: Text(a.name.isEmpty ? '-' : a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text('${a.assetId} • ${a.locationId ?? '-'}'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => AssetDetailsPage(id: a.id),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _onRefresh,
+                child: _loading && _items.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _items.length + (_loadingMore ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _items.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final a = _items[index];
+                          return ListTile(
+                            title: Text(a.name.isEmpty ? '-' : a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('${a.assetId} • ${a.locationId ?? '-'}'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AssetDetailsPage(id: a.id),
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

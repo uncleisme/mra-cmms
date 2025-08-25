@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:developer' as dev;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/work_order.dart';
@@ -75,20 +76,46 @@ class WorkOrdersRepository {
         final msg = '$title has been approved as $status';
         Future<void> ins(String uid) async {
           if (uid.isEmpty) return;
-          await _client.from('notifications').insert({
-            'user_id': uid,
-            'module': 'Work Orders',
-            'action': 'approved',
-            'entity_id': id,
-            'message': msg,
-          });
+          // Try with Dart List first (maps to Postgres arrays/jsonb correctly via PostgREST)
+          try {
+            await _client.from('notifications').insert({
+              'user_id': uid,
+              'module': 'Work Orders',
+              'action': 'approved',
+              'entity_id': id,
+              'message': msg,
+              'recipients': [uid],
+            });
+          } on PostgrestException catch (e1) {
+            // Fallback: use text[] literal for recipients (e.g., text[] column)
+            dev.log('notifications insert (list) failed, retrying with text[] literal',
+                error: 'code=${e1.code} message=${e1.message} details=${e1.details}',
+                name: 'WorkOrdersRepository.updateStatusForAdmin');
+            await _client.from('notifications').insert({
+              'user_id': uid,
+              'module': 'Work Orders',
+              'action': 'approved',
+              'entity_id': id,
+              'message': msg,
+              'recipients': '{${uid}}',
+            });
+          }
         }
         await ins(reqId);
         if (asgId.isNotEmpty && asgId != reqId) {
           await ins(asgId);
         }
-      } catch (_) {
-        // Swallow to avoid blocking main update flow
+      } catch (e) {
+        // Log PostgREST error details for diagnostics but do not block main flow
+        if (e is PostgrestException) {
+          dev.log(
+            'notifications insert failed',
+            error: 'code=${e.code} message=${e.message} details=${e.details}',
+            name: 'WorkOrdersRepository.updateStatusForAdmin',
+          );
+        } else {
+          dev.log('notifications insert error', error: e, name: 'WorkOrdersRepository.updateStatusForAdmin');
+        }
       }
       return (true, null);
     } catch (e) {

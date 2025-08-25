@@ -265,6 +265,12 @@ class DashboardPage extends ConsumerWidget {
     final profile = ref.watch(myProfileProvider);
     // Precompute current time once per build
     final now = DateTime.now();
+    // Cache media size to avoid repeated queries
+    final size = MediaQuery.sizeOf(context);
+    final w = size.width;
+    // Cache theme lookups
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     // Determine role once for this build
     final isAdmin = profile.maybeWhen(
       data: (p) => ((p?.type ?? '').toLowerCase() == 'admin'),
@@ -281,84 +287,85 @@ class DashboardPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Gradient header
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    MediaQuery.sizeOf(context).width < 400 ? 24.0 : 28.0,
-                    16,
-                    MediaQuery.sizeOf(context).width < 400 ? 16.0 : 20.0,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                RepaintBoundary(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      w < 400 ? 24.0 : 28.0,
+                      16,
+                      w < 400 ? 16.0 : 20.0,
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            profile.when(
-                              data: (p) {
-                                final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
-                                final hour = now.hour;
-                                final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-                                return Text(
-                                  '$greeting, $name',
-                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) *
-                                            (MediaQuery.sizeOf(context).width >= 700 ? 1.1 : 1.0),
-                                      ),
-                                );
-                              },
-                              loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
-                              error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                            ),
-                          ],
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              profile.when(
+                                data: (p) {
+                                  final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
+                                  final hour = now.hour;
+                                  final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                                  return Text(
+                                    '$greeting, $name',
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) * (w >= 700 ? 1.1 : 1.0),
+                                        ),
+                                  );
+                                },
+                                loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
+                                error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Notifications',
-                        onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                        icon: const Icon(Icons.notifications_none, color: Colors.white),
-                      ),
-                      const SizedBox(width: 4),
-                      profile.when(
-                        data: (p) {
-                          final avatarUrl = p?.avatarUrl;
-                          return InkWell(
-                            onTap: () => Navigator.pushNamed(context, '/profile'),
-                            borderRadius: BorderRadius.circular(28),
-                            child: CircleAvatar(
-                              radius: 22,
-                              backgroundColor: Colors.white,
-                              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                                  ? CachedNetworkImageProvider(avatarUrl)
-                                  : null,
-                              child: (avatarUrl == null || avatarUrl.isEmpty)
-                                  ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
-                                  : null,
-                            ),
-                          );
-                        },
-                        loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
-                        error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
-                      ),
-                    ],
+                        IconButton(
+                          tooltip: 'Notifications',
+                          onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                          icon: const Icon(Icons.notifications_none, color: Colors.white),
+                        ),
+                        const SizedBox(width: 4),
+                        profile.when(
+                          data: (p) {
+                            final avatarUrl = p?.avatarUrl;
+                            return InkWell(
+                              onTap: () => Navigator.pushNamed(context, '/profile'),
+                              borderRadius: BorderRadius.circular(28),
+                              child: CircleAvatar(
+                                radius: 22,
+                                backgroundColor: Colors.white,
+                                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                                    ? CachedNetworkImageProvider(avatarUrl)
+                                    : null,
+                                child: (avatarUrl == null || avatarUrl.isEmpty)
+                                    ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
+                                    : null,
+                              ),
+                            );
+                          },
+                          loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+                          error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -368,12 +375,46 @@ class DashboardPage extends ConsumerWidget {
                     final w = c.maxWidth;
                     final isCompact = w < 420;
                     if (isCompact) {
-                      return Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      return RepaintBoundary(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: () => Navigator.pushNamed(context, '/orders'),
+                                icon: const Icon(Icons.add_task),
+                                label: const Text('New order'),
+                                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                              ),
+                            ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.pushNamed(context, '/orders'),
+                                icon: const Icon(Icons.list_alt),
+                                label: const Text('My orders'),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                              ),
+                            ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.pushNamed(context, '/leaves'),
+                                icon: const Icon(Icons.beach_access_outlined),
+                                label: const Text('Leaves'),
+                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return RepaintBoundary(
+                      child: Row(
                         children: [
-                          SizedBox(
-                            width: double.infinity,
+                          Expanded(
                             child: FilledButton.icon(
                               onPressed: () => Navigator.pushNamed(context, '/orders'),
                               icon: const Icon(Icons.add_task),
@@ -381,8 +422,8 @@ class DashboardPage extends ConsumerWidget {
                               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                             ),
                           ),
-                          SizedBox(
-                            width: double.infinity,
+                          const SizedBox(width: 8),
+                          Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => Navigator.pushNamed(context, '/orders'),
                               icon: const Icon(Icons.list_alt),
@@ -390,8 +431,8 @@ class DashboardPage extends ConsumerWidget {
                               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                             ),
                           ),
-                          SizedBox(
-                            width: double.infinity,
+                          const SizedBox(width: 8),
+                          Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => Navigator.pushNamed(context, '/leaves'),
                               icon: const Icon(Icons.beach_access_outlined),
@@ -400,37 +441,7 @@ class DashboardPage extends ConsumerWidget {
                             ),
                           ),
                         ],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/orders'),
-                            icon: const Icon(Icons.add_task),
-                            label: const Text('New order'),
-                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/orders'),
-                            icon: const Icon(Icons.list_alt),
-                            label: const Text('My orders'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/leaves'),
-                            icon: const Icon(Icons.beach_access_outlined),
-                            label: const Text('Leaves'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                          ),
-                        ),
-                      ],
+                      ),
                     );
                   }),
                 const SizedBox(height: 16),
@@ -453,40 +464,47 @@ class DashboardPage extends ConsumerWidget {
                     final isAdmin = (p?.type ?? '').toLowerCase() == 'admin';
                     if (isAdmin) {
                       final pending = ref.watch(pendingReviewsProvider);
+                      final titleStyleBold = textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
                       return pending.when(
                         data: (items) {
-                          return SectionCard(
-                            title: 'Needs approval',
-                            filled: true,
-                            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                            titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                            count: items.length,
-                            onSeeAll: () => Navigator.pushNamed(context, '/orders/review'),
-                            child: ListTile(
-                              leading: const Icon(Icons.inbox_outlined),
-                              title: Text('${items.length} work orders awaiting approval'),
-                              subtitle: const Text('Click to see all'),
-                              trailing: const Icon(Icons.arrow_forward_ios),
-                              onTap: () => Navigator.pushNamed(context, '/orders/review'),
+                          return RepaintBoundary(
+                            child: SectionCard(
+                              title: 'Needs approval',
+                              filled: true,
+                              backgroundColor: cs.secondaryContainer,
+                              foregroundColor: cs.onSecondaryContainer,
+                              titleTextStyle: titleStyleBold,
+                              count: items.length,
+                              onSeeAll: () => Navigator.pushNamed(context, '/orders/review'),
+                              child: ListTile(
+                                leading: const Icon(Icons.inbox_outlined),
+                                title: Text('${items.length} work orders awaiting approval'),
+                                subtitle: const Text('Click to see all'),
+                                trailing: const Icon(Icons.arrow_forward_ios),
+                                onTap: () => Navigator.pushNamed(context, '/orders/review'),
+                              ),
                             ),
                           );
                         },
-                        loading: () => SectionCard(
-                          title: 'Needs approval',
-                          filled: true,
-                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                        loading: () => RepaintBoundary(
+                          child: SectionCard(
+                            title: 'Needs approval',
+                            filled: true,
+                            backgroundColor: cs.secondaryContainer,
+                            foregroundColor: cs.onSecondaryContainer,
+                            titleTextStyle: titleStyleBold,
+                            child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                          ),
                         ),
-                        error: (e, st) => SectionCard(
-                          title: 'Needs approval',
-                          filled: true,
-                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                          child: const ListTile(title: Text('Failed to load pending reviews')),
+                        error: (e, st) => RepaintBoundary(
+                          child: SectionCard(
+                            title: 'Needs approval',
+                            filled: true,
+                            backgroundColor: cs.secondaryContainer,
+                            foregroundColor: cs.onSecondaryContainer,
+                            titleTextStyle: titleStyleBold,
+                            child: const ListTile(title: Text('Failed to load pending reviews')),
+                          ),
                         ),
                       );
                     }
@@ -522,10 +540,10 @@ class DashboardPage extends ConsumerWidget {
                           backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
                           foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
                           padding: EdgeInsets.fromLTRB(
-                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
-                            MediaQuery.sizeOf(context).width < 360 ? 10 : 14,
-                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
-                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                            w < 360 ? 8 : 12,
+                            w < 360 ? 10 : 14,
+                            w < 360 ? 8 : 12,
+                            w < 360 ? 8 : 12,
                           ),
                           titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                           count: todayRelevant.length,
@@ -538,49 +556,46 @@ class DashboardPage extends ConsumerWidget {
                                 subtitle: Text('You are all caught up.'),
                               );
                             }
-                            return ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: visible.length.clamp(0, 3),
-                              separatorBuilder: (_, i) => const Divider(height: 1),
-                              itemBuilder: (context, i) {
-                                final wo = visible[i].$1;
-                                return ListTile(
-                                  leading: const Icon(Icons.work_outline),
-                                  title: Text(
-                                    (() {
+                            final count = visible.length.clamp(0, 3);
+                            return Column(
+                              children: [
+                                for (var i = 0; i < count; i++) ...[
+                                  if (i > 0) const Divider(height: 1),
+                                  Builder(builder: (context) {
+                                    final wo = visible[i].$1;
+                                    final titleStr = (() {
                                       final raw = (wo.title ?? 'Untitled').trim();
                                       final safe = raw.isEmpty ? 'Untitled' : raw;
                                       return titleCase(safe);
-                                    })(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 4,
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    children: [
-                                      if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                                      PriorityChip(wo.priority),
-                                    ],
-                                  ),
-                                  visualDensity: MediaQuery.sizeOf(context).width < 360
-                                      ? const VisualDensity(vertical: -2)
-                                      : VisualDensity.standard,
-                                  trailing: FilledButton.icon(
-                                    onPressed: () async {
-                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                                      // Refresh dashboard providers to reflect any status changes
-                                      ref.invalidate(todaysOrdersProvider);
-                                      ref.invalidate(kpisProvider);
-                                      ref.invalidate(recentNotificationsProvider);
-                                    },
-                                    icon: const Icon(Icons.play_arrow),
-                                    label: const Text('Start'),
-                                  ),
-                                );
-                              },
+                                    })();
+                                    return ListTile(
+                                      leading: const Icon(Icons.work_outline),
+                                      title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      subtitle: Wrap(
+                                        spacing: 8,
+                                        runSpacing: 4,
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        children: [
+                                          if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                                          PriorityChip(wo.priority),
+                                        ],
+                                      ),
+                                      visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
+                                      trailing: FilledButton.icon(
+                                        onPressed: () async {
+                                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                                          // Refresh dashboard providers to reflect any status changes
+                                          ref.invalidate(todaysOrdersProvider);
+                                          ref.invalidate(kpisProvider);
+                                          ref.invalidate(recentNotificationsProvider);
+                                        },
+                                        icon: const Icon(Icons.play_arrow),
+                                        label: const Text('Start'),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ],
                             );
                           }),
                         );
@@ -622,22 +637,18 @@ class DashboardPage extends ConsumerWidget {
                     return const ListTile(title: Text('No recent updates'));
                   }
                   final visible = items.take(5).toList();
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, i) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final n = visible[i];
-                      return ListTile(
-                        leading: const Icon(Icons.notifications_active_outlined),
-                        title: Text(n.title ?? 'Notification'),
-                        subtitle: Text(n.message ?? ''),
-                        visualDensity: MediaQuery.sizeOf(context).width < 360
-                            ? const VisualDensity(vertical: -2)
-                            : VisualDensity.standard,
-                      );
-                    },
+                  return Column(
+                    children: [
+                      for (var i = 0; i < visible.length; i++) ...[
+                        if (i > 0) const Divider(height: 1),
+                        ListTile(
+                          leading: const Icon(Icons.notifications_active_outlined),
+                          title: Text(visible[i].title ?? 'Notification'),
+                          subtitle: Text(visible[i].message ?? ''),
+                          visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
+                        ),
+                      ]
+                    ],
                   );
                 },
                 loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),

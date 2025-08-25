@@ -166,15 +166,34 @@ class NotificationsRepository {
     required String action,
     required String entityId,
     required String message,
+    List<String>? recipients,
   }) async {
     try {
-      await _client.from('notifications').insert({
-        'user_id': userId,
-        'module': module,
-        'action': action,
-        'entity_id': entityId,
-        'message': message,
-      });
+      // Prefer Dart List for recipients; fallback to text[] literal if needed
+      try {
+        await _client.from('notifications').insert({
+          'user_id': userId,
+          'module': module,
+          'action': action,
+          'entity_id': entityId,
+          'message': message,
+          if (recipients != null && recipients.isNotEmpty) 'recipients': recipients,
+          if (recipients == null || recipients.isEmpty) 'recipients': [userId],
+        });
+      } on PostgrestException catch (e1) {
+        dev.log('notifications.create list recipients failed, retrying with text[]',
+            error: 'code=${e1.code} message=${e1.message} details=${e1.details}',
+            name: 'NotificationsRepository');
+        final arr = recipients != null && recipients.isNotEmpty ? '{' + recipients.join(',') + '}' : '{' + userId + '}';
+        await _client.from('notifications').insert({
+          'user_id': userId,
+          'module': module,
+          'action': action,
+          'entity_id': entityId,
+          'message': message,
+          'recipients': arr,
+        });
+      }
     } catch (e) {
       dev.log('create notification error', error: e, name: 'NotificationsRepository');
       rethrow;

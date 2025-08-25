@@ -17,6 +17,8 @@ import 'package:mra_cmms/core/widgets/status_chip.dart';
 import 'package:mra_cmms/core/widgets/priority_chip.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mra_cmms/core/widgets/responsive_constraints.dart';
+import 'package:mra_cmms/features/dashboard/dashboard_providers.dart';
+import 'package:mra_cmms/repositories/notifications_repository.dart';
 
 class WorkOrderDetailsPage extends ConsumerStatefulWidget {
   final String id;
@@ -32,6 +34,7 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
   final locationsRepo = LocationsRepository();
   final attachmentsRepo = AttachmentsRepository();
   final profilesRepo = ProfilesRepository();
+  final notificationsRepo = NotificationsRepository();
   late Future<WorkOrder?> _future;
   late List<_TaskItem> _tasks;
   List<String> _attachmentUrls = const [];
@@ -41,6 +44,7 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
   String? _assetIdLoaded;
   String? _locationIdLoaded;
   String? _requesterIdLoaded;
+  bool _submittedForReview = false;
 
   @override
   void initState() {
@@ -170,11 +174,17 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   : '${two(d.day)}/${d.month}/${two(d.year % 100)}';
 
               final status = (wo.status ?? '').toLowerCase();
+              final profileAsync = ref.watch(myProfileProvider);
+              final isAdmin = profileAsync.maybeWhen(
+                data: (p) => ((p?.type ?? '').toLowerCase() == 'admin'),
+                orElse: () => false,
+              );
               // ensure asset/location names are loaded
               _ensureRefsLoaded(wo);
               // Lock checklist for Done and Review (and other final states)
               final isLocked =
                   status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
+              final isDisabled = isLocked || _submittedForReview;
               String toTitleCase(String s) {
                 if (s.trim().isEmpty) return s;
                 return s
@@ -291,6 +301,7 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                       ),
                     ),
 
+
                   // Placeholders for future sections
                   SectionCard(
                     title: 'Attachments',
@@ -382,19 +393,110 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                             minimumSize: const Size.fromHeight(52),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                             textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            backgroundColor: isDisabled
+                                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                                : null,
+                            foregroundColor: isDisabled
+                                ? Theme.of(context).colorScheme.onSurface
+                                : null,
                           ),
-                          onPressed: (!isLocked && _tasks.every((t) => t.done))
+                          onPressed: (!isDisabled && _tasks.every((t) => t.done))
                               ? () async {
-                                  // TODO: call repository to mark as completed
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Thank you. Work order now is being reviewed')),
-                                  );
+                                  // Update status to 'review' in backend, then disable locally
+                                  setState(() => _submittedForReview = true);
+                                  final result = await repo.updateStatus(widget.id, 'Review');
+                                  final ok = result.$1;
+                                  final error = result.$2;
+                                  if (!context.mounted) return;
+                                  if (ok) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Thank you. Work order is now in Review')),
+                                    );
+                                    // Force-refresh dashboard providers so Dashboard reflects status immediately
+                                    final _ = [
+                                      ref.refresh(kpisProvider),
+                                      ref.refresh(todaysOrdersProvider),
+                                      ref.refresh(recentNotificationsProvider),
+                                    ];
+                                    // Refresh details to reflect new status chip/text
+                                    await _refresh();
+                                  } else {
+                                    setState(() => _submittedForReview = false);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed to submit for review. ${error ?? 'Please try again.'}')),
+                                    );
+                                  }
                                 }
                               : null,
                           icon: const Icon(Icons.check_circle),
-                          label: const Text('Complete job'),
+                          label: Text(
+                            isDisabled
+                                ? ((status == 'done' || status == 'completed' || status == 'closed')
+                                    ? 'Done'
+                                    : 'Reviewed')
+                                : 'Complete job',
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        if (isAdmin && status == 'review')
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            onPressed: () async {
+                              final (ok, err) = await repo.updateStatusForAdmin(widget.id, 'Done');
+                              if (!context.mounted) return;
+                              if (ok) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Approved. Status set to Done.')),
+                                );
+                                // Emit notifications to requester and assignee if available
+                                try {
+                                  final wo = await repo.getById(widget.id);
+                                  final title = (wo?.title ?? 'Work order');
+                                  final msg = '$title has been approved as Done';
+                                  final rid = wo?.requestedBy;
+                                  final aid = wo?.assignedTo;
+                                  if (rid != null && rid.isNotEmpty) {
+                                    await notificationsRepo.create(
+                                      userId: rid,
+                                      module: 'Work Orders',
+                                      action: 'approved',
+                                      entityId: widget.id,
+                                      message: msg,
+                                    );
+                                  }
+                                  if (aid != null && aid.isNotEmpty && aid != rid) {
+                                    await notificationsRepo.create(
+                                      userId: aid,
+                                      module: 'Work Orders',
+                                      action: 'approved',
+                                      entityId: widget.id,
+                                      message: msg,
+                                    );
+                                  }
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Notification not created: $e')),
+                                  );
+                                }
+                                // Refresh dashboard and this page
+                                ref.invalidate(kpisProvider);
+                                ref.invalidate(todaysOrdersProvider);
+                                ref.invalidate(recentNotificationsProvider);
+                                ref.invalidate(pendingReviewsProvider);
+                                await _refresh();
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Approve failed: ${err ?? 'Unknown error'}')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.task_alt),
+                            label: const Text('Approve as Done (Admin)'),
+                          ),
                       ],
                     ),
                   ),

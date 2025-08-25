@@ -11,6 +11,34 @@ class NotificationsRepository {
     return getForCurrentUser(limit: limit, offset: offset);
   }
 
+  /// Keyset-paginated fetch for ALL notifications (global feed), created_at descending.
+  Future<List<ActivityNotification>> getAllPage({int limit = 20, DateTime? before}) async {
+    try {
+      var q = _client
+          .from('notifications')
+          .select('id, user_id, module, action, entity_id, message, created_at, is_read');
+      if (before != null) {
+        q = q.lt('created_at', before.toUtc().toIso8601String());
+      }
+      final res = await q.order('created_at', ascending: false).limit(limit);
+      final list = (res as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      return compute(_parseNotifications, list);
+    } catch (e) {
+      if (e is PostgrestException) {
+        dev.log(
+          'getAllPage notifications PostgREST error',
+          error: 'code=${e.code} message=${e.message} details=${e.details}',
+          name: 'NotificationsRepository',
+        );
+      } else {
+        dev.log('getAllPage notifications error', error: e, name: 'NotificationsRepository');
+      }
+      rethrow;
+    }
+  }
+
   /// Keyset-paginated fetch for the current user using created_at descending.
   /// Pass a [before] cursor (usually the last item's createdAt) to get older pages.
   Future<List<ActivityNotification>> getForCurrentUserPage({int limit = 20, DateTime? before}) async {
@@ -127,6 +155,28 @@ class NotificationsRepository {
           .eq('is_read', false);
     } catch (e) {
       dev.log('markAllReadForCurrentUser error', error: e, name: 'NotificationsRepository');
+      rethrow;
+    }
+  }
+
+  /// Create a notification for a specific user.
+  Future<void> create({
+    required String userId,
+    required String module,
+    required String action,
+    required String entityId,
+    required String message,
+  }) async {
+    try {
+      await _client.from('notifications').insert({
+        'user_id': userId,
+        'module': module,
+        'action': action,
+        'entity_id': entityId,
+        'message': message,
+      });
+    } catch (e) {
+      dev.log('create notification error', error: e, name: 'NotificationsRepository');
       rethrow;
     }
   }

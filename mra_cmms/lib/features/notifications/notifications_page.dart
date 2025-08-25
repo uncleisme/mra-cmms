@@ -83,7 +83,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Future<void> _loadFirstPage() async {
     try {
       const pageSize = 30;
-      final data = await _repo.getForCurrentUserPage(limit: pageSize);
+      // Global feed so all users see the same updates
+      final data = await _repo.getAllPage(limit: pageSize);
       if (!mounted) return;
       setState(() {
         _items = data;
@@ -104,7 +105,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     setState(() => _loadingMore = true);
     try {
       const pageSize = 30;
-      final data = await _repo.getForCurrentUserPage(limit: pageSize, before: _nextCursor);
+      // Global feed continuation
+      final data = await _repo.getAllPage(limit: pageSize, before: _nextCursor);
       if (!mounted) return;
       setState(() {
         // Deduplicate by id when appending

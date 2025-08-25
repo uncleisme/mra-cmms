@@ -23,6 +23,12 @@ final todaysOrdersProvider = FutureProvider<List<WorkOrder>>((ref) async {
   return repo.getTodaysAssigned();
 });
 
+// Work orders waiting for admin approval (status = 'Review')
+final pendingReviewsProvider = FutureProvider<List<WorkOrder>>((ref) async {
+  final repo = ref.read(_workOrdersRepoProvider);
+  return repo.getPendingReviews(limit: 20);
+});
+
 final todaysLeavesProvider = FutureProvider<List<LeaveRequest>>((ref) async {
   final repo = ref.read(_leavesRepoProvider);
   return repo.getTodaysLeaves();
@@ -37,7 +43,8 @@ final myProfileProvider = FutureProvider<Profile?>((ref) async {
 // Recent notifications for current user (RLS-aware via repository)
 final recentNotificationsProvider = FutureProvider<List<ActivityNotification>>((ref) async {
   final repo = ref.read(_notificationsRepoProvider);
-  return repo.getForCurrentUser(limit: 20);
+  // Global feed so all users see the same recent updates
+  return repo.getAll(limit: 20);
 });
 
 // General notifications provider (family) to mirror leaves/orders provider style

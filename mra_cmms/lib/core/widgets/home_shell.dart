@@ -4,7 +4,8 @@ import '../../main.dart' show DashboardPage, OrdersPage, LeavesPage, SettingsPag
 
 class HomeShell extends StatefulWidget {
   final int initialIndex;
-  const HomeShell({super.key, this.initialIndex = 0});
+  final String? ordersFilter;
+  const HomeShell({super.key, this.initialIndex = 0, this.ordersFilter});
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -18,7 +19,7 @@ class _HomeShellState extends State<HomeShell> {
     // Pages rendered without their own bottom navigation
     final pages = [
       const DashboardPage(showNav: false),
-      const OrdersPage(showNav: false),
+      OrdersPage(showNav: false, initialFilter: widget.ordersFilter),
       const LeavesPage(showNav: false),
       const SettingsPage(showNav: false),
     ];

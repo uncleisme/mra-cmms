@@ -25,11 +25,10 @@ import 'core/widgets/home_shell.dart';
 import 'core/widgets/empty_state.dart';
 import 'features/profile/profile_page.dart';
 import 'features/dashboard/dashboard_providers.dart';
-import 'core/widgets/kpi_card.dart';
 import 'core/widgets/section_card.dart';
-import 'core/widgets/skeleton_box.dart';
 import 'features/orders/work_order_details_page.dart';
 import 'features/notifications/notifications_page.dart';
+import 'features/schedule/my_schedule_page.dart';
 import 'core/widgets/responsive_constraints.dart';
 
 // Shared lightweight helpers to reduce allocations in build methods
@@ -81,10 +80,12 @@ class MyApp extends ConsumerWidget {
         '/register': (_) => const RegisterPage(),
         '/dashboard': (_) => const HomeShell(initialIndex: 0),
         '/orders': (_) => const HomeShell(initialIndex: 1),
+    '/orders/review': (_) => const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
         '/leaves': (_) => const HomeShell(initialIndex: 2),
         '/settings': (_) => const HomeShell(initialIndex: 3),
         '/profile': (_) => const ProfilePage(),
         '/notifications': (_) => const NotificationsPage(),
+        '/schedule': (_) => const MySchedulePage(),
       },
     );
   }
@@ -259,14 +260,19 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final kpis = ref.watch(kpisProvider);
     final todaysOrders = ref.watch(todaysOrdersProvider);
     final recent = ref.watch(recentNotificationsProvider);
     final profile = ref.watch(myProfileProvider);
     // Precompute current time once per build
     final now = DateTime.now();
+    // Determine role once for this build
+    final isAdmin = profile.maybeWhen(
+      data: (p) => ((p?.type ?? '').toLowerCase() == 'admin'),
+      orElse: () => false,
+    );
 
     return Scaffold(
+      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -356,17 +362,49 @@ class DashboardPage extends ConsumerWidget {
                   ),
                 ),
 
-                // Quick actions
-                LayoutBuilder(builder: (context, c) {
-                  final w = c.maxWidth;
-                  final isCompact = w < 420;
-                  if (isCompact) {
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                // Quick actions (admins only)
+                if (isAdmin)
+                  LayoutBuilder(builder: (context, c) {
+                    final w = c.maxWidth;
+                    final isCompact = w < 420;
+                    if (isCompact) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () => Navigator.pushNamed(context, '/orders'),
+                              icon: const Icon(Icons.add_task),
+                              label: const Text('New order'),
+                              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                            ),
+                          ),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pushNamed(context, '/orders'),
+                              icon: const Icon(Icons.list_alt),
+                              label: const Text('My orders'),
+                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                            ),
+                          ),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pushNamed(context, '/leaves'),
+                              icon: const Icon(Icons.beach_access_outlined),
+                              label: const Text('Leaves'),
+                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
                       children: [
-                        SizedBox(
-                          width: double.infinity,
+                        Expanded(
                           child: FilledButton.icon(
                             onPressed: () => Navigator.pushNamed(context, '/orders'),
                             icon: const Icon(Icons.add_task),
@@ -374,8 +412,8 @@ class DashboardPage extends ConsumerWidget {
                             style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                           ),
                         ),
-                        SizedBox(
-                          width: double.infinity,
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () => Navigator.pushNamed(context, '/orders'),
                             icon: const Icon(Icons.list_alt),
@@ -383,8 +421,8 @@ class DashboardPage extends ConsumerWidget {
                             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                           ),
                         ),
-                        SizedBox(
-                          width: double.infinity,
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () => Navigator.pushNamed(context, '/leaves'),
                             icon: const Icon(Icons.beach_access_outlined),
@@ -394,202 +432,186 @@ class DashboardPage extends ConsumerWidget {
                         ),
                       ],
                     );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, '/orders'),
-                          icon: const Icon(Icons.add_task),
-                          label: const Text('New order'),
-                          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, '/orders'),
-                          icon: const Icon(Icons.list_alt),
-                          label: const Text('My orders'),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, '/leaves'),
-                          icon: const Icon(Icons.beach_access_outlined),
-                          label: const Text('Leaves'),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
+                  }),
                 const SizedBox(height: 16),
-                todaysOrders.when(
-                  data: (items) {
-                bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
-                bool isToday(DateTime? d) {
-                  if (d == null) return false;
-                  final local = d.toLocal();
-                  return isSameDay(local, now);
-                }
-                DateTime? eff(wo) {
-                  final status = (wo.status ?? '').toLowerCase();
-                  final dueToday = isToday(wo.dueDate);
-                  final completed = status == 'completed' || status == 'done' || status == 'closed';
-                  final nextToday = completed && isToday(wo.nextScheduledDate);
-                  if (dueToday) return wo.dueDate?.toLocal();
-                  if (nextToday) return wo.nextScheduledDate?.toLocal();
-                  return null;
-                }
-                final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
-                final todayRelevant = withEff.where((e) => e.$2 != null).toList();
-                todayRelevant.sort((a, b) {
-                  final ad = a.$2!;
-                  final bd = b.$2!;
-                  return ad.compareTo(bd);
-                });
-                final visible = todayRelevant.take(5).toList();
-                return SectionCard(
-                  title: "Today's orders",
-                  filled: true,
-                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                  foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                  padding: EdgeInsets.fromLTRB(
-                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
-                    MediaQuery.sizeOf(context).width < 360 ? 10 : 14,
-                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
-                    MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                // Technician entry to My Schedule
+                if (!isAdmin)
+                  SectionCard(
+                    title: 'My schedule',
+                    onSeeAll: () => Navigator.pushNamed(context, '/schedule'),
+                    child: ListTile(
+                      leading: const Icon(Icons.schedule),
+                      title: const Text('Open My Schedule'),
+                      subtitle: const Text('View today and this week'),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () => Navigator.pushNamed(context, '/schedule'),
+                    ),
                   ),
-                  titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  count: todayRelevant.length,
-                  onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                  child: Builder(builder: (context) {
-                    if (visible.isEmpty) {
-                      return const ListTile(
-                        leading: Icon(Icons.inbox_outlined),
-                        title: Text('No orders for today'),
-                        subtitle: Text('You are all caught up.'),
+                const SizedBox(height: 16),
+                profile.when(
+                  data: (p) {
+                    final isAdmin = (p?.type ?? '').toLowerCase() == 'admin';
+                    if (isAdmin) {
+                      final pending = ref.watch(pendingReviewsProvider);
+                      return pending.when(
+                        data: (items) {
+                          return SectionCard(
+                            title: 'Needs approval',
+                            filled: true,
+                            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                            titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                            count: items.length,
+                            onSeeAll: () => Navigator.pushNamed(context, '/orders/review'),
+                            child: ListTile(
+                              leading: const Icon(Icons.inbox_outlined),
+                              title: Text('${items.length} work orders awaiting approval'),
+                              subtitle: const Text('Click to see all'),
+                              trailing: const Icon(Icons.arrow_forward_ios),
+                              onTap: () => Navigator.pushNamed(context, '/orders/review'),
+                            ),
+                          );
+                        },
+                        loading: () => SectionCard(
+                          title: 'Needs approval',
+                          filled: true,
+                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                        ),
+                        error: (e, st) => SectionCard(
+                          title: 'Needs approval',
+                          filled: true,
+                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                          child: const ListTile(title: Text('Failed to load pending reviews')),
+                        ),
                       );
                     }
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: visible.length.clamp(0, 3),
-                      separatorBuilder: (_, i) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final wo = visible[i].$1;
-                        return ListTile(
-                          leading: const Icon(Icons.work_outline),
-                          title: Text(
-                            (() {
-                              final raw = (wo.title ?? 'Untitled').trim();
-                              final safe = raw.isEmpty ? 'Untitled' : raw;
-                              return titleCase(safe);
-                            })(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    // Non-admin: show original Today's orders card
+                    return todaysOrders.when(
+                      data: (items) {
+                        bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+                        bool isToday(DateTime? d) {
+                          if (d == null) return false;
+                          final local = d.toLocal();
+                          return isSameDay(local, now);
+                        }
+                        DateTime? eff(wo) {
+                          final status = (wo.status ?? '').toLowerCase();
+                          final dueToday = isToday(wo.dueDate);
+                          final completed = status == 'completed' || status == 'done' || status == 'closed';
+                          final nextToday = completed && isToday(wo.nextScheduledDate);
+                          if (dueToday) return wo.dueDate?.toLocal();
+                          if (nextToday) return wo.nextScheduledDate?.toLocal();
+                          return null;
+                        }
+                        final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
+                        final todayRelevant = withEff.where((e) => e.$2 != null).toList();
+                        todayRelevant.sort((a, b) {
+                          final ad = a.$2!;
+                          final bd = b.$2!;
+                          return ad.compareTo(bd);
+                        });
+                        final visible = todayRelevant.take(5).toList();
+                        return SectionCard(
+                          title: "Today's orders",
+                          filled: true,
+                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                          padding: EdgeInsets.fromLTRB(
+                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                            MediaQuery.sizeOf(context).width < 360 ? 10 : 14,
+                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
+                            MediaQuery.sizeOf(context).width < 360 ? 8 : 12,
                           ),
-                          subtitle: Row(children: [if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!), const SizedBox(width: 8), PriorityChip(wo.priority)]),
-                          visualDensity: MediaQuery.sizeOf(context).width < 360
-                              ? const VisualDensity(vertical: -2)
-                              : VisualDensity.standard,
-                          trailing: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))), icon: const Icon(Icons.play_arrow), label: const Text('Start')),
+                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                          count: todayRelevant.length,
+                          onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                          child: Builder(builder: (context) {
+                            if (visible.isEmpty) {
+                              return const ListTile(
+                                leading: Icon(Icons.inbox_outlined),
+                                title: Text('No orders for today'),
+                                subtitle: Text('You are all caught up.'),
+                              );
+                            }
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: visible.length.clamp(0, 3),
+                              separatorBuilder: (_, i) => const Divider(height: 1),
+                              itemBuilder: (context, i) {
+                                final wo = visible[i].$1;
+                                return ListTile(
+                                  leading: const Icon(Icons.work_outline),
+                                  title: Text(
+                                    (() {
+                                      final raw = (wo.title ?? 'Untitled').trim();
+                                      final safe = raw.isEmpty ? 'Untitled' : raw;
+                                      return titleCase(safe);
+                                    })(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                                      PriorityChip(wo.priority),
+                                    ],
+                                  ),
+                                  visualDensity: MediaQuery.sizeOf(context).width < 360
+                                      ? const VisualDensity(vertical: -2)
+                                      : VisualDensity.standard,
+                                  trailing: FilledButton.icon(
+                                    onPressed: () async {
+                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                                      // Refresh dashboard providers to reflect any status changes
+                                      ref.invalidate(todaysOrdersProvider);
+                                      ref.invalidate(kpisProvider);
+                                      ref.invalidate(recentNotificationsProvider);
+                                    },
+                                    icon: const Icon(Icons.play_arrow),
+                                    label: const Text('Start'),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
                         );
                       },
-                    );
-                  }),
-                );
-              },
-              loading: () => SectionCard(
-                title: "Today's orders",
-                filled: true,
-                backgroundColor: const Color(0xFF08234F),
-                foregroundColor: Colors.white,
-                titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
-                    ),
-                onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-              ),
-              error: (e, st) => SectionCard(
-                title: "Today's orders",
-                filled: true,
-                backgroundColor: const Color(0xFF08234F),
-                foregroundColor: Colors.white,
-                titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
-                    ),
-                onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                child: const ListTile(title: Text("Failed to load today's orders")),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: kpis.when(
-                data: (v) {
-                  final activeTotal = (v['active'] ?? 0) + (v['in_progress'] ?? 0);
-                  final doneTotal = (v['review'] ?? 0) + (v['done'] ?? 0);
-                  final cards = [
-                    KpiCard(
-                      label: 'Active',
-                      value: activeTotal,
-                      icon: Icons.bolt_outlined,
-                      illustrationIcon: Icons.bolt,
-                      color: const Color(0xFFC7B816),
-                      onTap: () => Navigator.pushNamed(context, '/orders'),
-                    ),
-                    KpiCard(
-                      label: 'Done',
-                      value: doneTotal,
-                      icon: Icons.task_alt,
-                      illustrationIcon: Icons.task_alt,
-                      color: const Color(0xFF1BC229),
-                      onTap: () => Navigator.pushNamed(context, '/orders'),
-                    ),
-                  ];
-                  return LayoutBuilder(builder: (context, constraints) {
-                    final w = constraints.maxWidth;
-                    final cols = w >= 1000 ? 4 : (w >= 700 ? 3 : 2);
-                    final aspect = w >= 700 ? 2.6 : 2.0;
-                    return GridView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 8),
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: cards.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: cols,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: aspect,
+                      loading: () => SectionCard(
+                        title: "Today's orders",
+                        filled: true,
+                        backgroundColor: const Color(0xFF08234F),
+                        foregroundColor: Colors.white,
+                        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+                        ),
+                        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                        child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
                       ),
-                      itemBuilder: (context, index) => cards[index],
+                      error: (e, st) => SectionCard(
+                        title: "Today's orders",
+                        filled: true,
+                        backgroundColor: const Color(0xFF08234F),
+                        foregroundColor: Colors.white,
+                        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+                        ),
+                        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+                        child: const ListTile(title: Text("Failed to load today's orders")),
+                      ),
                     );
-                  });
-                },
-                loading: () => LayoutBuilder(builder: (context, constraints) {
-                  final w = constraints.maxWidth;
-                  final cols = w >= 1000 ? 4 : (w >= 700 ? 3 : 2);
-                  final aspect = w >= 700 ? 2.6 : 2.0;
-                  return GridView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 8),
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: cols, // show one row of skeletons
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: aspect,
-                    ),
-                    itemBuilder: (context, index) => const SkeletonBox(height: 64),
-                  );
-                }),
-                error: (e, st) => const SizedBox.shrink(),
-              ),
-            ),
+                  },
+                  loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                  error: (e, st) => const SizedBox.shrink(),
+                ),
             const SizedBox(height: 12),
             SectionCard(
               title: 'Recent updates',
@@ -623,12 +645,11 @@ class DashboardPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-          ],
+          ]
         ),
       ),
     ),
   ),
-  bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
 );
   }
 }
@@ -718,7 +739,7 @@ class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: visible.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
+          separatorBuilder: (_, i) => const Divider(height: 1),
           itemBuilder: (context, i) {
             final lv = visible[i];
             final range = '${_fmtYyMYY(lv.startDate)} → ${_fmtYyMYY(lv.endDate)}';
@@ -785,7 +806,8 @@ class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
 
 class OrdersPage extends StatefulWidget {
   final bool showNav;
-  const OrdersPage({super.key, this.showNav = true});
+  final String? initialFilter;
+  const OrdersPage({super.key, this.showNav = true, this.initialFilter});
 
   @override
   State<OrdersPage> createState() => _OrdersPageState();
@@ -800,13 +822,16 @@ class _OrdersPageState extends State<OrdersPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String _query = '';
-  String _sortKey = 'due'; // 'due' | 'priority' | 'status' | 'title'
-  bool _ascending = false; // latest first by default
+  final String _sortKey = 'due'; // 'due' | 'priority' | 'status' | 'title'
+  final bool _ascending = false; // latest first by default
   String? _statusFilter; // active | in_progress | review | done
   String? _datePreset; // null=all time | today | week | month | next_month
+  bool _adminScope = false; // opened from review route -> admin-wide filtering
 
   @override
   void initState() {
+    _statusFilter = widget.initialFilter?.toLowerCase();
+    _adminScope = (_statusFilter == 'review');
     super.initState();
     _scrollController.addListener(() {
       if (_loadingMore || !_hasMore) return;
@@ -835,6 +860,18 @@ class _OrdersPageState extends State<OrdersPage> {
 
   Future<void> _loadFirstPage() async {
     try {
+      if (_adminScope) {
+        final status = (_statusFilter ?? 'review');
+        final page = await repo.getByStatusPage(status: status, cursor: null, limit: 20);
+        setState(() {
+          _items = page.items;
+          _nextCursor = page.nextCursor;
+          _hasMore = page.nextCursor != null;
+          _initialLoading = false;
+        });
+        return;
+      }
+
       final page = await repo.getAssignedToMePage(cursor: null, limit: 20);
       setState(() {
         _items = page.items;
@@ -851,6 +888,20 @@ class _OrdersPageState extends State<OrdersPage> {
     if (!_hasMore || _loadingMore) return;
     setState(() => _loadingMore = true);
     try {
+      if (_adminScope) {
+        final status = (_statusFilter ?? 'review');
+        final page = await repo.getByStatusPage(status: status, cursor: _nextCursor, limit: 20);
+        setState(() {
+          final existingIds = _items.map((e) => e.id).toSet();
+          final newOnes = page.items.where((e) => !existingIds.contains(e.id)).toList();
+          _items = List.of(_items)..addAll(newOnes);
+          _nextCursor = page.nextCursor;
+          _hasMore = page.nextCursor != null;
+          _loadingMore = false;
+        });
+        return;
+      }
+
       final page = await repo.getAssignedToMePage(cursor: _nextCursor, limit: 20);
       setState(() {
         // Deduplicate by id when appending
@@ -949,25 +1000,37 @@ class _OrdersPageState extends State<OrdersPage> {
                         ChoiceChip(
                           label: const Text('All'),
                           selected: _statusFilter == null,
-                          onSelected: (_) => setState(() => _statusFilter = null),
+                          onSelected: (_) {
+                            setState(() => _statusFilter = null);
+                            _refresh();
+                          },
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Active'),
                           selected: _statusFilter == 'active',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'active' : null),
+                          onSelected: (v) {
+                            setState(() => _statusFilter = v ? 'active' : null);
+                            _refresh();
+                          },
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Review'),
                           selected: _statusFilter == 'review',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'review' : null),
+                          onSelected: (v) {
+                            setState(() => _statusFilter = v ? 'review' : null);
+                            _refresh();
+                          },
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Done'),
                           selected: _statusFilter == 'done',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'done' : null),
+                          onSelected: (v) {
+                            setState(() => _statusFilter = v ? 'done' : null);
+                            _refresh();
+                          },
                         ),
                         const SizedBox(width: 12),
                         // Date preset chips
@@ -1171,7 +1234,11 @@ class _OrdersPageState extends State<OrdersPage> {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))),
+                        onTap: () async {
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                          if (!mounted) return;
+                          _refresh();
+                        },
                         child: Padding(
                           padding: EdgeInsets.all(compact ? 12 : 16),
                           child: Row(
@@ -1214,7 +1281,11 @@ class _OrdersPageState extends State<OrdersPage> {
                                   Text(wo.dueDate == null ? '' : fmt(wo.dueDate!)),
                                   const SizedBox(height: 6),
                                   FilledButton.tonalIcon(
-                                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id))),
+                                    onPressed: () async {
+                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                                      if (!mounted) return;
+                                      _refresh();
+                                    },
                                     icon: const Icon(Icons.visibility_outlined),
                                     label: const Text('View'),
                                   ),
@@ -1549,7 +1620,7 @@ class _LeavesPageState extends State<LeavesPage> {
                 onAction: _createLeave,
               );
             }
-            Color _statusBg(String s, BuildContext c) {
+            Color statusBg(String s, BuildContext c) {
               final cs = Theme.of(c).colorScheme;
               switch (s.toLowerCase()) {
                 case 'approved':
@@ -1561,7 +1632,7 @@ class _LeavesPageState extends State<LeavesPage> {
                   return cs.tertiaryContainer;
               }
             }
-            Color _statusFg(String s, BuildContext c) {
+            Color statusFg(String s, BuildContext c) {
               final cs = Theme.of(c).colorScheme;
               switch (s.toLowerCase()) {
                 case 'approved':
@@ -1573,7 +1644,7 @@ class _LeavesPageState extends State<LeavesPage> {
                   return cs.onTertiaryContainer;
               }
             }
-            String _cap(String s) {
+            String cap(String s) {
               final t = s.trim();
               if (t.isEmpty) return t;
               return t[0].toUpperCase() + t.substring(1).toLowerCase();
@@ -1609,8 +1680,8 @@ class _LeavesPageState extends State<LeavesPage> {
                       final d = lv.endDate.difference(lv.startDate).inDays + 1; // inclusive
                       return d < 1 ? 1 : d;
                     })();
-                    final bg = _statusBg(lv.status, context);
-                    final fg = _statusFg(lv.status, context);
+                    final bg = statusBg(lv.status, context);
+                    final fg = statusFg(lv.status, context);
                     return Padding(
                       padding: EdgeInsets.fromLTRB(12, i == 0 ? 12 : 6, 12, 6),
                       child: Card(
@@ -1622,7 +1693,7 @@ class _LeavesPageState extends State<LeavesPage> {
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                                 child: const Icon(Icons.beach_access_outlined),
                               ),
                               const SizedBox(width: 12),
@@ -1634,7 +1705,7 @@ class _LeavesPageState extends State<LeavesPage> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            _cap(lv.typeKey),
+                                            cap(lv.typeKey),
                                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: titleSize,
@@ -1651,7 +1722,7 @@ class _LeavesPageState extends State<LeavesPage> {
                                             borderRadius: BorderRadius.circular(999),
                                           ),
                                           child: Text(
-                                            _cap(lv.status),
+                                            cap(lv.status),
                                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                                   color: fg,
                                                   fontWeight: FontWeight.w600,
@@ -1702,7 +1773,7 @@ class SettingsPage extends ConsumerWidget {
     String modeLabel(ThemeMode m) =>
         m == ThemeMode.light ? 'Light' : m == ThemeMode.dark ? 'Dark' : 'System';
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(centerTitle: true, title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
@@ -1779,8 +1850,8 @@ class SettingsPage extends ConsumerWidget {
           ),
         ],
       ),
-      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 3) : null,
-    );
+      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
+    );  
   }
 }
 

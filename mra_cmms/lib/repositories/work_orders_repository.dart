@@ -369,6 +369,8 @@ extension WorkOrdersRepositoryCreate on WorkOrdersRepository {
     String? contactPerson,
     String? contactNumber,
     String? requestedBy,
+    String? assignedTo,
+    String? serviceProviderId,
   }) async {
     try {
       final now = DateTime.now();
@@ -386,6 +388,8 @@ extension WorkOrdersRepositoryCreate on WorkOrdersRepository {
         'contact_person': contactPerson,
         'contact_number': contactNumber,
         'requested_by': requestedBy,
+        'assigned_to': assignedTo,
+        'service_provider_id': serviceProviderId,
         'created_at': nowUtcIso,
         'updated_at': nowUtcIso,
       };

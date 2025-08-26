@@ -74,36 +74,41 @@ class WorkOrdersRepository {
         final asgId = (updated['assigned_to'] ?? '').toString();
         final title = (updated['title'] ?? 'Work order').toString();
         final msg = '$title has been approved as $status';
-        Future<void> ins(String uid) async {
-          if (uid.isEmpty) return;
-          // Try with Dart List first (maps to Postgres arrays/jsonb correctly via PostgREST)
-          try {
-            await _client.from('notifications').insert({
-              'user_id': uid,
-              'module': 'Work Orders',
-              'action': 'approved',
-              'entity_id': id,
-              'message': msg,
-              'recipients': [uid],
-            });
-          } on PostgrestException catch (e1) {
-            // Fallback: use text[] literal for recipients (e.g., text[] column)
-            dev.log('notifications insert (list) failed, retrying with text[] literal',
-                error: 'code=${e1.code} message=${e1.message} details=${e1.details}',
-                name: 'WorkOrdersRepository.updateStatusForAdmin');
-            await _client.from('notifications').insert({
-              'user_id': uid,
-              'module': 'Work Orders',
-              'action': 'approved',
-              'entity_id': id,
-              'message': msg,
-              'recipients': '{$uid}',
-            });
+        // Only insert notifications if at least one recipient is valid
+        if (reqId.isEmpty && asgId.isEmpty) {
+          dev.log('No valid recipients for notification (requested_by and assigned_to are empty)', name: 'WorkOrdersRepository.updateStatusForAdmin');
+        } else {
+          Future<void> ins(String uid) async {
+            if (uid.isEmpty) return;
+            // Try with Dart List first (maps to Postgres arrays/jsonb correctly via PostgREST)
+            try {
+              await _client.from('notifications').insert({
+                'user_id': uid,
+                'module': 'Work Orders',
+                'action': 'approved',
+                'entity_id': id,
+                'message': msg,
+                'recipients': [uid],
+              });
+            } on PostgrestException catch (e1) {
+              // Fallback: use text[] literal for recipients (e.g., text[] column)
+              dev.log('notifications insert (list) failed, retrying with text[] literal',
+                  error: 'code=${e1.code} message=${e1.message} details=${e1.details}',
+                  name: 'WorkOrdersRepository.updateStatusForAdmin');
+              await _client.from('notifications').insert({
+                'user_id': uid,
+                'module': 'Work Orders',
+                'action': 'approved',
+                'entity_id': id,
+                'message': msg,
+                'recipients': '{$uid}',
+              });
+            }
           }
-        }
-        await ins(reqId);
-        if (asgId.isNotEmpty && asgId != reqId) {
-          await ins(asgId);
+          await ins(reqId);
+          if (asgId.isNotEmpty && asgId != reqId) {
+            await ins(asgId);
+          }
         }
       } catch (e) {
         // Log PostgREST error details for diagnostics but do not block main flow
@@ -311,26 +316,23 @@ class WorkOrdersRepository {
     String? cursor,
     int limit = 20,
   }) async {
-    // Normalize and map to DB values
-    String s = status.toLowerCase().trim();
-    final List<String> statuses;
-    if (s == 'done' || s == 'completed') {
-      statuses = ['done', 'completed', 'Done', 'Completed'];
-    } else if (s == 'active' || s == 'in_progress' || s == 'in progress') {
-      statuses = ['active', 'in_progress', 'in progress', 'Active', 'In_Progress', 'In progress'];
-    } else if (s == 'review') {
-      statuses = ['Review', 'review'];
-    } else {
-      statuses = [status];
-    }
-
     var base = _client.from('work_orders').select();
-    // Use OR for multiple status variants
-    if (statuses.length == 1) {
-      base = base.eq('status', statuses.first);
-    } else {
-      final ors = statuses.map((v) => 'status.eq.$v').join(',');
-      base = base.or(ors);
+    if (status.trim().isNotEmpty) {
+      // Normalize and map to DB values (only allowed: 'Active', 'In Progress', 'Review', 'Done')
+      String s = status.toLowerCase().trim();
+      String dbStatus;
+      if (s == 'done' || s == 'completed') {
+        dbStatus = 'Done';
+      } else if (s == 'active' || s == 'in_progress' || s == 'in progress') {
+        dbStatus = 'Active';
+      } else if (s == 'review') {
+        dbStatus = 'Review';
+      } else if (s == 'in progress') {
+        dbStatus = 'In Progress';
+      } else {
+        dbStatus = status;
+      }
+      base = base.eq('status', dbStatus);
     }
 
     if (cursor != null && cursor.isNotEmpty) {
@@ -375,7 +377,24 @@ extension WorkOrdersRepositoryCreate on WorkOrdersRepository {
     try {
       final now = DateTime.now();
       final nowUtcIso = now.toUtc().toIso8601String();
+
+      // Generate work_order_id: WOyyyymmddNNNN (NNNN = sequence for the day)
+      final dateStr = now.year.toString().padLeft(4, '0')+
+          now.month.toString().padLeft(2, '0')+
+          now.day.toString().padLeft(2, '0');
+      // Get count of work orders for today to increment sequence
+      final todayStart = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59).toUtc().toIso8601String();
+      final countRes = await _client.from('work_orders')
+        .select('id')
+        .gte('created_date', todayStart)
+        .lte('created_date', todayEnd);
+      int seq = (countRes != null && countRes is List ? countRes.length : 0) + 1;
+      final seqStr = seq.toString().padLeft(4, '0');
+      final workOrderId = 'WO$dateStr$seqStr';
+
       final map = <String, dynamic>{
+        'work_order_id': workOrderId,
         'title': title,
         'description': description,
         'work_type': workType,

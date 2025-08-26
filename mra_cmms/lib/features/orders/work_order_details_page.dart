@@ -191,10 +191,17 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                 children: [
                   _HeaderSection(wo: wo, id: widget.id),
 
-                  _KeyInfoSection(
-                    created: fmtDate(wo.createdDate ?? wo.createdAt),
-                    due: fmtDate(wo.dueDate),
-                    requesterName: _requester?.fullName ?? '-',
+                  FutureBuilder<Profile?>(
+                    future: wo.assignedTo != null && wo.assignedTo!.isNotEmpty ? profilesRepo.getById(wo.assignedTo!) : Future.value(null),
+                    builder: (context, assigneeSnap) {
+                      final assigneeName = assigneeSnap.data?.fullName;
+                      return _KeyInfoSection(
+                        created: fmtDate(wo.createdDate ?? wo.createdAt),
+                        due: fmtDate(wo.dueDate),
+                        requesterName: _requester?.fullName ?? '-',
+                        assigneeName: assigneeName,
+                      );
+                    },
                   ),
 
                   _AssetLocationSection(
@@ -391,7 +398,8 @@ class _KeyInfoSection extends StatelessWidget {
   final String created;
   final String due;
   final String requesterName;
-  const _KeyInfoSection({required this.created, required this.due, required this.requesterName});
+  final String? assigneeName;
+  const _KeyInfoSection({required this.created, required this.due, required this.requesterName, this.assigneeName});
 
   @override
   Widget build(BuildContext context) {
@@ -402,6 +410,7 @@ class _KeyInfoSection extends StatelessWidget {
           _InfoRow(label: 'Created', value: created),
           _InfoRow(label: 'Due Date', value: due),
           _InfoRow(label: 'Requested By', value: requesterName),
+          if (assigneeName != null) _InfoRow(label: 'Assigned To', value: assigneeName!),
         ],
       ),
     );

@@ -117,7 +117,7 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                                   final ok = await _confirm(context, 'Approve this work order as Completed?');
                                   if (ok != true) return;
                                   final repo = WorkOrdersRepository();
-                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Completed');
+                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Done');
                                   if (!context.mounted) return;
                                   if (success) {
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order approved')));
@@ -1155,12 +1155,12 @@ class _OrdersPageState extends State<OrdersPage> {
   final bool _ascending = false; // latest first by default
   String? _statusFilter; // active | in_progress | review | done
   String? _datePreset; // null=all time | today | week | month | next_month
-  bool _adminScope = false; // opened from review route -> admin-wide filtering
+  bool _adminScope = true; // always true for admin, fetch all
 
   @override
   void initState() {
-    _statusFilter = widget.initialFilter?.toLowerCase();
-    _adminScope = (_statusFilter == 'review');
+  _statusFilter = widget.initialFilter?.toLowerCase() ?? '';
+  _adminScope = true;
     super.initState();
     _scrollController.addListener(() {
       if (_loadingMore || !_hasMore) return;
@@ -1325,12 +1325,12 @@ class _OrdersPageState extends State<OrdersPage> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        // Status chips
+                        // Status chips (only All, Active, Review, Done)
                         ChoiceChip(
                           label: const Text('All'),
-                          selected: _statusFilter == null,
+                          selected: _statusFilter == null || _statusFilter == '',
                           onSelected: (_) {
-                            setState(() => _statusFilter = null);
+                            setState(() => _statusFilter = '');
                             _refresh();
                           },
                         ),
@@ -1339,7 +1339,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           label: const Text('Active'),
                           selected: _statusFilter == 'active',
                           onSelected: (v) {
-                            setState(() => _statusFilter = v ? 'active' : null);
+                            setState(() => _statusFilter = v ? 'active' : '');
                             _refresh();
                           },
                         ),
@@ -1348,7 +1348,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           label: const Text('Review'),
                           selected: _statusFilter == 'review',
                           onSelected: (v) {
-                            setState(() => _statusFilter = v ? 'review' : null);
+                            setState(() => _statusFilter = v ? 'review' : '');
                             _refresh();
                           },
                         ),
@@ -1357,18 +1357,13 @@ class _OrdersPageState extends State<OrdersPage> {
                           label: const Text('Done'),
                           selected: _statusFilter == 'done',
                           onSelected: (v) {
-                            setState(() => _statusFilter = v ? 'done' : null);
+                            setState(() => _statusFilter = v ? 'done' : '');
                             _refresh();
                           },
                         ),
                         const SizedBox(width: 12),
                         // Date preset chips
-                        ChoiceChip(
-                          label: const Text('All time'),
-                          selected: _datePreset == null,
-                          onSelected: (_) => setState(() => _datePreset = null),
-                        ),
-                        const SizedBox(width: 8),
+                        // Removed 'All time' filter
                         ChoiceChip(
                           label: const Text('Today'),
                           selected: _datePreset == 'today',
@@ -1846,13 +1841,7 @@ class _LeavesPageState extends State<LeavesPage> {
                           onSelected: (v) => setState(() => _statusFilter = v ? 'rejected' : null),
                         ),
                         const SizedBox(width: 12),
-                        // Date preset chips
-                        ChoiceChip(
-                          label: const Text('All time'),
-                          selected: _datePreset == null,
-                          onSelected: (_) => setState(() => _datePreset = null),
-                        ),
-                        const SizedBox(width: 8),
+                        // Date preset chips (removed 'All time')
                         ChoiceChip(
                           label: const Text('Today'),
                           selected: _datePreset == 'today',

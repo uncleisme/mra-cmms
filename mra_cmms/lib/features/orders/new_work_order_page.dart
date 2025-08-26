@@ -85,7 +85,7 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       print('Fetching technicians...');
       final techsFuture = client.from('profiles')
           .select('id, full_name, type')
-          .or('type.eq.technician,type.eq.Technician');
+          .eq('type', 'technician');
           
       print('Fetching service providers...');
       final providersFuture = client.from('contacts')
@@ -308,7 +308,7 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
                                   _selectedAssetId = value;
                                   final selectedAsset = _assets.firstWhere(
                                     (a) => a['id']?.toString() == value,
-                                    orElse: () => <String, dynamic>{},
+                                    orElse: () => <String, String?>{},
                                   );
                                   if (selectedAsset.isNotEmpty) {
                                     _selectedLocationId = selectedAsset['location_id']?.toString();

@@ -804,7 +804,7 @@ class AdminApprovalSection extends ConsumerWidget {
     return pending.when(
       data: (items) => RepaintBoundary(
         child: SectionCard(
-          title: 'Needs approval',
+          title: 'Work Order Approval',
           filled: false,
           backgroundColor: Theme.of(context).colorScheme.surface,
           square: true,
@@ -816,8 +816,8 @@ class AdminApprovalSection extends ConsumerWidget {
           onSeeAll: () => Navigator.pushNamed(context, '/orders/approval'),
           child: ListTile(
             leading: const Icon(Icons.inbox_outlined),
-            title: Text('${items.length} work orders awaiting approval'),
-            subtitle: const Text('Click to see all'),
+            title: Text('${items.length} work order(s) pending'),
+            subtitle: const Text('Work Order Approval'),
             trailing: const Icon(Icons.arrow_forward_ios),
             onTap: () => Navigator.pushNamed(context, '/orders/approval'),
           ),
@@ -887,6 +887,29 @@ class TodaysOrdersSection extends ConsumerWidget {
       data: (items) {
         final todayRelevant = computeTodayRelevant(items, now);
         final visible = todayRelevant.take(5).toList();
+        if (visible.isEmpty) {
+          return SectionCard(
+            title: "Today's orders",
+            filled: true,
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+            padding: EdgeInsets.fromLTRB(
+              w < 360 ? 8 : 12,
+              w < 360 ? 10 : 14,
+              w < 360 ? 8 : 12,
+              w < 360 ? 8 : 12,
+            ),
+            titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            count: todayRelevant.length,
+            onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+            child: const ListTile(
+              leading: Icon(Icons.inbox_outlined),
+              title: Text('No orders for today'),
+              subtitle: Text('You are all caught up.'),
+            ),
+          );
+        }
+        final count = visible.length.clamp(0, 3);
         return SectionCard(
           title: "Today's orders",
           filled: true,
@@ -901,56 +924,46 @@ class TodaysOrdersSection extends ConsumerWidget {
           titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           count: todayRelevant.length,
           onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-          child: Builder(builder: (context) {
-            if (visible.isEmpty) {
-              return const ListTile(
-                leading: Icon(Icons.inbox_outlined),
-                title: Text('No orders for today'),
-                subtitle: Text('You are all caught up.'),
-              );
-            }
-            final count = visible.length.clamp(0, 3);
-            return Column(
-              children: [
-                for (var i = 0; i < count; i++) ...[
-                  if (i > 0) const Divider(height: 1),
-                  Builder(builder: (context) {
-                    final wo = visible[i].$1;
-                    final titleStr = (() {
-                      final raw = (wo.title ?? 'Untitled').trim();
-                      final safe = raw.isEmpty ? 'Untitled' : raw;
-                      return titleCase(safe);
-                    })();
-                    return ListTile(
-                      leading: const Icon(Icons.work_outline),
-                      title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                          PriorityChip(wo.priority),
-                        ],
-                      ),
-                      visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
-                      trailing: FilledButton.icon(
-                        onPressed: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                          // Refresh dashboard providers to reflect any status changes
-                          ref.invalidate(todaysOrdersProvider);
-                          ref.invalidate(kpisProvider);
-                          ref.invalidate(recentNotificationsProvider);
-                        },
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Start'),
-                      ),
-                    );
-                  }),
-                ],
+          child: Column(
+            children: [
+              for (var i = 0; i < count; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                Builder(builder: (context) {
+                  final wo = visible[i].$1;
+                  final titleStr = (() {
+                    final raw = (wo.title ?? 'Untitled').trim();
+                    final safe = raw.isEmpty ? 'Untitled' : raw;
+                    return titleCase(safe);
+                  })();
+                  return ListTile(
+                    leading: const Icon(Icons.work_outline),
+                    title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                        PriorityChip(wo.priority),
+                      ],
+                    ),
+                    visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
+                    trailing: FilledButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                        // Refresh dashboard providers to reflect any status changes
+                        ref.invalidate(todaysOrdersProvider);
+                        ref.invalidate(kpisProvider);
+                        ref.invalidate(recentNotificationsProvider);
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start'),
+                    ),
+                  );
+                }),
               ],
-            );
-          }),
+            ],
+          ),
         );
       },
       loading: () => SectionCard(
@@ -976,160 +989,7 @@ class TodaysOrdersSection extends ConsumerWidget {
         child: const ListTile(title: Text("Failed to load today's orders")),
       ),
     );
-  }
-}
-
-// RecentUpdatesSection removed per request
-
-// AdminChartSection and bar column removed per request
-
-class _TodaysLeavesSection extends StatefulWidget {
-  final String userId;
-  const _TodaysLeavesSection({required this.userId});
-
-  @override
-  State<_TodaysLeavesSection> createState() => _TodaysLeavesSectionState();
-}
-
-class _TodaysLeavesSectionState extends State<_TodaysLeavesSection> {
-  late Future<List<LeaveRequest>> _future;
-  final _repo = LeavesRepository();
-  final _profilesRepo = ProfilesRepository();
-  final Map<String, Profile?> _profileCache = {};
-  final Set<String> _loadingProfiles = {};
-
-  String _fmtYyMYY(DateTime d) {
-    final yy = (d.year % 100).toString().padLeft(2, '0');
-    final m = d.month.toString();
-    return '$yy/$m/$yy';
-  }
-
-  (Color bg, Color fg) _typeColors(ThemeData theme, String typeKey) {
-    final cs = theme.colorScheme;
-    final t = typeKey.toLowerCase().trim();
-    switch (t) {
-      case 'annual':
-      case 'vacation':
-        return (const Color(0xFFC7B816), Colors.black); // brand-ish yellow
-      case 'sick':
-        return (const Color(0xFFB01C0E), Colors.white); // brand-ish red
-      case 'emergency':
-      case 'urgent':
-        return (cs.error, cs.onError);
-      case 'unpaid':
-        return (cs.tertiary, cs.onTertiary);
-      case 'maternity':
-      case 'paternity':
-        return (cs.secondary, cs.onSecondary);
-      default:
-        // fallback to secondary container tones
-        return (cs.secondaryContainer, cs.onSecondaryContainer);
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _repo.getTodaysLeavesForUser(widget.userId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<LeaveRequest>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
-        }
-        final items = List<LeaveRequest>.of(snapshot.data ?? const []);
-        // Preload requester profiles for visible items
-        for (final lv in items.take(5)) {
-          final uid = lv.userId;
-          if (uid.isEmpty) continue;
-          if (_profileCache.containsKey(uid) || _loadingProfiles.contains(uid)) continue;
-          _loadingProfiles.add(uid);
-          _profilesRepo.getById(uid).then((p) {
-            if (!mounted) return;
-            setState(() {
-              _profileCache[uid] = p;
-              _loadingProfiles.remove(uid);
-            });
-          });
-        }
-        if (items.isEmpty) {
-          return const ListTile(
-            leading: Icon(Icons.beach_access_outlined),
-            title: Text('No leaves today'),
-            subtitle: Text('Enjoy your day!'),
-          );
-        }
-        final visible = items.take(5).toList();
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: visible.length,
-          separatorBuilder: (_, i) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final lv = visible[i];
-            final range = '${_fmtYyMYY(lv.startDate)} → ${_fmtYyMYY(lv.endDate)}';
-            return RepaintBoundary(
-              child: ListTile(
-                leading: const Icon(Icons.event_outlined),
-                title: Text(
-                  (_profileCache[lv.userId]?.fullName ?? '—').toString(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Builder(builder: (context) {
-                          final (bg, fg) = _typeColors(Theme.of(context), lv.typeKey);
-                          return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: bg,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              lv.typeKey,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: fg,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          );
-                        }),
-                        const SizedBox(width: 8),
-                        Text(range, style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                    // reason removed as requested
-                  ],
-                ),
-                isThreeLine: false,
-                minVerticalPadding: 8,
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    StatusChip(lv.status),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.pushNamed(context, '/leaves');
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
+  // ...existing code...
   }
 }
 

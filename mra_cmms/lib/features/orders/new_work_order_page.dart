@@ -52,50 +52,103 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
   }
 
   Future<void> _loadLookups() async {
+    print('Starting _loadLookups...');
+    if (mounted) {
+      setState(() {
+        _loadingLookups = true;
+      });
+    }
+
     try {
       final client = Supabase.instance.client;
-      final assetsData = await client
+      
+      print('Fetching assets...');
+      final assetsResponse = await client
           .from('assets')
           .select('id, asset_name, location_id')
           .order('asset_name')
-          .limit(500) as List;
-      final locationsData = await client
-          .from('locations')
-          .select('id, name')
-          .limit(500) as List;
-      final techsData = await client
-          .from('profiles')
+          .limit(500);
+      
+      print('Raw assets response: $assetsResponse');
+      
+      final assetsData = (assetsResponse as List?)?.cast<Map<String, dynamic>>() ?? [];
+      print('Found ${assetsData.length} assets');
+      
+      if (assetsData.isNotEmpty) {
+        print('First asset data: ${assetsData.first}');
+      }
+      
+      // Fetch other data in parallel
+      print('Fetching locations...');
+      final locationsFuture = client.from('locations').select('id, name').limit(500);
+      
+      print('Fetching technicians...');
+      final techsFuture = client.from('profiles')
           .select('id, full_name, type')
-          .or('type.eq.technician,type.eq.Technician') as List;
-      final providersData = await client
-          .from('contacts') // Assuming 'contacts' table for service providers
+          .or('type.eq.technician,type.eq.Technician');
+          
+      print('Fetching service providers...');
+      final providersFuture = client.from('contacts')
           .select('id, name')
           .eq('type', 'Service Provider')
-          .limit(500) as List;
+          .limit(500);
 
-      setState(() {
-        _assets = assetsData.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      print('Waiting for all data to load...');
+      final results = await Future.wait([
+        locationsFuture,
+        techsFuture,
+        providersFuture,
+      ]);
 
-        _locations = locationsData.map((e) {
-          final m = Map<String, dynamic>.from(e as Map);
-          return {'id': m['id'].toString(), 'label': m['name'].toString()};
-        }).toList();
+      if (!mounted) {
+        print('Widget not mounted, aborting...');
+        return;
+      }
 
-        _technicians = techsData.map((e) {
-          final m = Map<String, dynamic>.from(e as Map);
-          return {'id': m['id'].toString(), 'label': m['full_name'].toString()};
-        }).toList();
+      print('Processing data...');
+      final newAssets = assetsData.map((e) => {
+        'id': e['id']?.toString() ?? '',
+        'asset_name': e['asset_name']?.toString() ?? 'Unnamed Asset',
+        'location_id': e['location_id']?.toString(),
+      }).toList();
+      
+      print('Mapped ${newAssets.length} assets');
+      if (newAssets.isNotEmpty) {
+        print('First mapped asset: ${newAssets.first}');
+      }
+      
+      final newLocations = (results[0] as List).map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return {'id': m['id'].toString(), 'label': m['name'].toString()};
+      }).toList();
+      print('Mapped ${newLocations.length} locations');
 
-        _serviceProviders = providersData.map((e) {
-          final m = Map<String, dynamic>.from(e as Map);
-          return {'id': m['id'].toString(), 'label': m['name'].toString()};
-        }).toList();
+      final newTechnicians = (results[1] as List).map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return {'id': m['id'].toString(), 'label': m['full_name'].toString()};
+      }).toList();
+      print('Mapped ${newTechnicians.length} technicians');
 
-        _loadingLookups = false;
-      });
-    } catch (e) {
-      setState(() => _loadingLookups = false);
+      final newServiceProviders = (results[2] as List).map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return {'id': m['id'].toString(), 'label': m['name'].toString()};
+      }).toList();
+      print('Mapped ${newServiceProviders.length} service providers');
+
       if (mounted) {
+        setState(() {
+          _assets = newAssets;
+          _locations = newLocations;
+          _technicians = newTechnicians;
+          _serviceProviders = newServiceProviders;
+          _loadingLookups = false;
+        });
+        print('State updated with new data');
+      }
+    } catch (e) {
+      print('Error in _loadLookups: $e');
+      if (mounted) {
+        setState(() => _loadingLookups = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading data: ${e.toString()}')),
         );
@@ -135,6 +188,12 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
         _currentStep--;
       });
     }
+  }
+
+  String _getLocationNameById(String? locationId) {
+    if (locationId == null) return 'N/A';
+    final location = _locations.firstWhere((l) => l['id'] == locationId, orElse: () => {'label': 'Unknown Location'});
+    return location['label']!;
   }
 
   Future<void> _submit() async {
@@ -215,28 +274,64 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
         children: [
           const Text('Step 3: Asset and Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedAssetId,
-            decoration: const InputDecoration(labelText: 'Asset (optional)'),
-            items: _assets.map((asset) {
-              return DropdownMenuItem(value: asset['id'].toString(), child: Text(asset['asset_name'].toString()));
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedAssetId = value;
-                final selectedAsset = _assets.firstWhere((a) => a['id'] == value, orElse: () => {});
-                _selectedLocationId = selectedAsset.isNotEmpty ? selectedAsset['location_id']?.toString() : null;
-              });
-            },
-          ),
+          _loadingLookups
+              ? const Center(child: CircularProgressIndicator())
+              : _assets.isEmpty
+                  ? const Text('No assets available')
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Select Asset', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedAssetId,
+                              isExpanded: true,
+                              hint: const Text('Select an asset'),
+                              items: _assets.map<DropdownMenuItem<String>>((asset) {
+                                final assetName = asset['asset_name']?.toString() ?? 'Unnamed Asset';
+                                final assetId = asset['id']?.toString();
+                                return DropdownMenuItem<String>(
+                                  value: assetId,
+                                  child: Text(assetName, overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                              onChanged: (String? value) {
+                                if (value == null) return;
+                                setState(() {
+                                  _selectedAssetId = value;
+                                  final selectedAsset = _assets.firstWhere(
+                                    (a) => a['id']?.toString() == value,
+                                    orElse: () => <String, dynamic>{},
+                                  );
+                                  if (selectedAsset.isNotEmpty) {
+                                    _selectedLocationId = selectedAsset['location_id']?.toString();
+                                  } else {
+                                    _selectedLocationId = null;
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _selectedLocationId,
-            decoration: const InputDecoration(labelText: 'Location (auto-filled)'),
-            items: _locations.map((loc) {
-              return DropdownMenuItem(value: loc['id'], child: Text(loc['label']!));
-            }).toList(),
-            onChanged: null, // Disabled
+          TextFormField(
+            key: ValueKey(_selectedLocationId), // Ensures field rebuilds when ID changes
+            initialValue: _getLocationNameById(_selectedLocationId),
+            readOnly: true,
+            decoration: const InputDecoration(
+              labelText: 'Location (auto-filled)',
+              border: InputBorder.none,
+              filled: true,
+            ),
           ),
         ],
       ),

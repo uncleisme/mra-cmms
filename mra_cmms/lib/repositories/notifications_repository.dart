@@ -184,7 +184,7 @@ class NotificationsRepository {
         dev.log('notifications.create list recipients failed, retrying with text[]',
             error: 'code=${e1.code} message=${e1.message} details=${e1.details}',
             name: 'NotificationsRepository');
-        final arr = recipients != null && recipients.isNotEmpty ? '{' + recipients.join(',') + '}' : '{' + userId + '}';
+        final arr = recipients != null && recipients.isNotEmpty ? '{${recipients.join(',')}}' : '{$userId}';
         await _client.from('notifications').insert({
           'user_id': userId,
           'module': module,

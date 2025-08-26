@@ -143,8 +143,6 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Work Order Details'),
@@ -185,326 +183,457 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
               final isLocked =
                   status == 'completed' || status == 'done' || status == 'closed' || status == 'review' || status.contains('review');
               final isDisabled = isLocked || _submittedForReview;
-              String toTitleCase(String s) {
-                if (s.trim().isEmpty) return s;
-                return s
-                    .split(RegExp(r'\s+'))
-                    .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
-                    .join(' ');
-              }
 
               return ListView(
                 padding: const EdgeInsets.only(bottom: 24),
                 cacheExtent: 800,
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  // Header section
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          toTitleCase(wo.title ?? 'Untitled'),
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'ID: ${widget.id.split('-').first.toUpperCase()}',
-                          style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                            PriorityChip(wo.priority),
-                            Chip(
-                              label: Text(
-                                'Due: ${fmtDate(wo.dueDate)}',
-                                style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                  _HeaderSection(wo: wo, id: widget.id),
+
+                  _KeyInfoSection(
+                    created: fmtDate(wo.createdDate ?? wo.createdAt),
+                    due: fmtDate(wo.dueDate),
+                    requesterName: _requester?.fullName ?? '-',
+                  ),
+
+                  _AssetLocationSection(
+                    asset: _asset,
+                    location: _location,
+                    onTapAsset: (_asset?.assetId ?? '').isEmpty
+                        ? null
+                        : () {
+                            final aid = _asset!.id;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AssetDetailsPage(id: aid),
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                            );
+                          },
+                    onTapLocation: (_location?.locationId ?? '').isEmpty
+                        ? null
+                        : () {
+                            final humanId = _location!.locationId;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LocationDetailsPage(locationId: humanId),
+                              ),
+                            );
+                          },
                   ),
 
-                  // Key Info
-                  SectionCard(
-                    title: 'Key Info',
-                    child: Column(
-                      children: [
-                        _InfoRow(label: 'Created', value: fmtDate(wo.createdDate ?? wo.createdAt)),
-                        _InfoRow(label: 'Due Date', value: fmtDate(wo.dueDate)),
-                        _InfoRow(label: 'Requested By', value: _requester?.fullName ?? '-'),
-                      ],
-                    ),
-                  ),
-
-                  // Asset & Location moved into its own container
-                  SectionCard(
-                    title: 'Asset & Location',
-                    child: Column(
-                      children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('Asset', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                          subtitle: Text(((_asset?.assetId ?? '-')).toUpperCase()),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: (_asset?.assetId ?? '').isEmpty
-                              ? null
-                              : () {
-                                  final aid = _asset!.id;
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => AssetDetailsPage(id: aid),
-                                    ),
-                                  );
-                                },
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('Location', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                          subtitle: Text(((_location?.locationId ?? '-')).toUpperCase()),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: (_location?.locationId ?? '').isEmpty
-                              ? null
-                              : () {
-                                  final humanId = _location!.locationId;
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => LocationDetailsPage(locationId: humanId),
-                                    ),
-                                  );
-                                },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Description
                   if ((wo.description ?? '').isNotEmpty)
-                    SectionCard(
-                      title: 'Description',
-                      child: Text(
-                        wo.description!,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
+                    _DescriptionSection(text: wo.description!),
 
+                  _AttachmentsSection(
+                    attachmentUrls: _attachmentUrls,
+                    onPick: _pickAndUpload,
+                  ),
 
-                  // Placeholders for future sections
-                  SectionCard(
-                    title: 'Attachments',
-                    actions: [
-                      IconButton(
-                        tooltip: 'Add from camera',
-                        onPressed: () => _pickAndUpload(ImageSource.camera),
-                        icon: const Icon(Icons.photo_camera_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Add from gallery',
-                        onPressed: () => _pickAndUpload(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library_outlined),
-                      ),
-                    ],
-                    child: _attachmentUrls.isEmpty
-                        ? Text('No attachments', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              const crossAxisCount = 3;
-                              const spacing = 8.0;
-                              final cellWidth = ((constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).floor();
-                              return GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  crossAxisSpacing: spacing,
-                                  mainAxisSpacing: spacing,
-                                ),
-                                itemCount: _attachmentUrls.length,
-                                itemBuilder: (context, index) {
-                                  final url = _attachmentUrls[index];
-                                  return RepaintBoundary(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: InkWell(
-                                        onTap: () => showDialog(
-                                          context: context,
-                                          builder: (_) => Dialog(
-                                            child: InteractiveViewer(
-                                              child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
-                                            ),
-                                          ),
-                                        ),
-                                        child: CachedNetworkImage(
-                                          imageUrl: url,
-                                          fit: BoxFit.cover,
-                                          memCacheWidth: cellWidth, // downscale decode to cell size
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
+                  const _ActivitySection(),
+
+                  _CompletionSection(
+                    tasks: _tasks,
+                    isLocked: isLocked,
+                    isDisabled: isDisabled,
+                    status: status,
+                    isAdmin: isAdmin,
+                    onToggleTask: isLocked
+                        ? null
+                        : (idx, v) => setState(() => _tasks[idx].done = v),
+                    onSubmitReview: (!isDisabled && _tasks.every((t) => t.done))
+                        ? () async {
+                            setState(() => _submittedForReview = true);
+                            final result = await repo.updateStatus(widget.id, 'Review');
+                            final ok = result.$1;
+                            final error = result.$2;
+                            if (!context.mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Thank you. Work order is now in Review')),
                               );
-                            },
-                          ),
-                  ),
-                  SectionCard(
-                    title: 'Activity',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('No activity yet', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                  SectionCard(
-                    title: 'Completion',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isLocked)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text('This job is completed. Checklist is read-only.',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-                          ),
-                        ..._tasks.map((t) => CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              controlAffinity: ListTileControlAffinity.leading,
-                              title: Text(t.title),
-                              value: t.done,
-                              onChanged: isLocked ? null : (v) => setState(() => t.done = v ?? false),
-                            )),
-                        const SizedBox(height: 8),
-                        FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(52),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                            textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                            backgroundColor: isDisabled
-                                ? Theme.of(context).colorScheme.surfaceContainerHighest
-                                : null,
-                            foregroundColor: isDisabled
-                                ? Theme.of(context).colorScheme.onSurface
-                                : null,
-                          ),
-                          onPressed: (!isDisabled && _tasks.every((t) => t.done))
-                              ? () async {
-                                  // Update status to 'review' in backend, then disable locally
-                                  setState(() => _submittedForReview = true);
-                                  final result = await repo.updateStatus(widget.id, 'Review');
-                                  final ok = result.$1;
-                                  final error = result.$2;
-                                  if (!context.mounted) return;
-                                  if (ok) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Thank you. Work order is now in Review')),
-                                    );
-                                    // Force-refresh dashboard providers so Dashboard reflects status immediately
-                                    final _ = [
-                                      ref.refresh(kpisProvider),
-                                      ref.refresh(todaysOrdersProvider),
-                                      ref.refresh(recentNotificationsProvider),
-                                    ];
-                                    // Refresh details to reflect new status chip/text
-                                    await _refresh();
-                                  } else {
-                                    setState(() => _submittedForReview = false);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Failed to submit for review. ${error ?? 'Please try again.'}')),
-                                    );
-                                  }
-                                }
-                              : null,
-                          icon: const Icon(Icons.check_circle),
-                          label: Text(
-                            isDisabled
-                                ? ((status == 'done' || status == 'completed' || status == 'closed')
-                                    ? 'Done'
-                                    : 'Reviewed')
-                                : 'Complete job',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (isAdmin && status == 'review')
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            onPressed: () async {
-                              final (ok, err) = await repo.updateStatusForAdmin(widget.id, 'Done');
-                              if (!context.mounted) return;
-                              if (ok) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Approved. Status set to Done.')),
-                                );
-                                // Emit notifications to requester and assignee if available
-                                try {
-                                  final wo = await repo.getById(widget.id);
-                                  final title = (wo?.title ?? 'Work order');
-                                  final msg = '$title has been approved as Done';
-                                  final rid = wo?.requestedBy;
-                                  final aid = wo?.assignedTo;
-                                  if (rid != null && rid.isNotEmpty) {
-                                    await notificationsRepo.create(
-                                      userId: rid,
-                                      module: 'Work Orders',
-                                      action: 'approved',
-                                      entityId: widget.id,
-                                      message: msg,
-                                    );
-                                  }
-                                  if (aid != null && aid.isNotEmpty && aid != rid) {
-                                    await notificationsRepo.create(
-                                      userId: aid,
-                                      module: 'Work Orders',
-                                      action: 'approved',
-                                      entityId: widget.id,
-                                      message: msg,
-                                    );
-                                  }
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Notification not created: $e')),
+                              final _ = [
+                                ref.refresh(kpisProvider),
+                                ref.refresh(todaysOrdersProvider),
+                                ref.refresh(recentNotificationsProvider),
+                              ];
+                              await _refresh();
+                            } else {
+                              setState(() => _submittedForReview = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to submit for review. ${error ?? 'Please try again.'}')),
+                              );
+                            }
+                          }
+                        : null,
+                    onAdminApprove: (isAdmin && status == 'review')
+                        ? () async {
+                            final (ok, err) = await repo.updateStatusForAdmin(widget.id, 'Done');
+                            if (!context.mounted) return;
+                            if (ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Approved. Status set to Done.')),
+                              );
+                              try {
+                                final wo = await repo.getById(widget.id);
+                                final title = (wo?.title ?? 'Work order');
+                                final msg = '$title has been approved as Done';
+                                final rid = wo?.requestedBy;
+                                final aid = wo?.assignedTo;
+                                if (rid != null && rid.isNotEmpty) {
+                                  await notificationsRepo.create(
+                                    userId: rid,
+                                    module: 'Work Orders',
+                                    action: 'approved',
+                                    entityId: widget.id,
+                                    message: msg,
                                   );
                                 }
-                                // Refresh dashboard and this page
-                                ref.invalidate(kpisProvider);
-                                ref.invalidate(todaysOrdersProvider);
-                                ref.invalidate(recentNotificationsProvider);
-                                ref.invalidate(pendingReviewsProvider);
-                                await _refresh();
-                              } else {
+                                if (aid != null && aid.isNotEmpty && aid != rid) {
+                                  await notificationsRepo.create(
+                                    userId: aid,
+                                    module: 'Work Orders',
+                                    action: 'approved',
+                                    entityId: widget.id,
+                                    message: msg,
+                                  );
+                                }
+                              } catch (e) {
+                                if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Approve failed: ${err ?? 'Unknown error'}')),
+                                  SnackBar(content: Text('Notification not created: $e')),
                                 );
                               }
-                            },
-                            icon: const Icon(Icons.task_alt),
-                            label: const Text('Approve as Done (Admin)'),
-                          ),
-                      ],
-                    ),
+                              ref.invalidate(kpisProvider);
+                              ref.invalidate(todaysOrdersProvider);
+                              ref.invalidate(recentNotificationsProvider);
+                              ref.invalidate(pendingReviewsProvider);
+                              await _refresh();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Approve failed: ${err ?? 'Unknown error'}')),
+                              );
+                            }
+                          }
+                        : null,
                   ),
                 ],
               );
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeaderSection extends StatelessWidget {
+  final WorkOrder wo;
+  final String id;
+  const _HeaderSection({required this.wo, required this.id});
+
+  String _toTitleCase(String s) {
+    if (s.trim().isEmpty) return s;
+    return s
+        .split(RegExp(r'\s+'))
+        .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+        .join(' ');
+  }
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+  String _fmtDate(DateTime? d) => d == null ? '-' : '${_two(d.day)}/${d.month}/${_two(d.year % 100)}';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _toTitleCase(wo.title ?? 'Untitled'),
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'ID: ${id.split('-').first.toUpperCase()}',
+            style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+              PriorityChip(wo.priority),
+              Chip(
+                label: Text(
+                  'Due: ${_fmtDate(wo.dueDate)}',
+                  style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KeyInfoSection extends StatelessWidget {
+  final String created;
+  final String due;
+  final String requesterName;
+  const _KeyInfoSection({required this.created, required this.due, required this.requesterName});
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Key Info',
+      child: Column(
+        children: [
+          _InfoRow(label: 'Created', value: created),
+          _InfoRow(label: 'Due Date', value: due),
+          _InfoRow(label: 'Requested By', value: requesterName),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssetLocationSection extends StatelessWidget {
+  final AssetInfo? asset;
+  final LocationInfo? location;
+  final VoidCallback? onTapAsset;
+  final VoidCallback? onTapLocation;
+  const _AssetLocationSection({required this.asset, required this.location, this.onTapAsset, this.onTapLocation});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SectionCard(
+      title: 'Asset & Location',
+      child: Column(
+        children: [
+          ListTile(
+            key: ValueKey('asset-${asset?.id ?? ''}'),
+            contentPadding: EdgeInsets.zero,
+            title: Text('Asset', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            subtitle: Text(((asset?.assetId ?? '-')).toUpperCase()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: onTapAsset,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: ValueKey('location-${location?.locationId ?? ''}'),
+            contentPadding: EdgeInsets.zero,
+            title: Text('Location', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            subtitle: Text(((location?.locationId ?? '-')).toUpperCase()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: onTapLocation,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DescriptionSection extends StatelessWidget {
+  final String text;
+  const _DescriptionSection({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Description',
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+class _AttachmentsSection extends StatelessWidget {
+  final List<String> attachmentUrls;
+  final Future<void> Function(ImageSource) onPick;
+  const _AttachmentsSection({required this.attachmentUrls, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SectionCard(
+      title: 'Attachments',
+      actions: [
+        IconButton(
+          tooltip: 'Add from camera',
+          onPressed: () => onPick(ImageSource.camera),
+          icon: const Icon(Icons.photo_camera_outlined),
+        ),
+        IconButton(
+          tooltip: 'Add from gallery',
+          onPressed: () => onPick(ImageSource.gallery),
+          icon: const Icon(Icons.photo_library_outlined),
+        ),
+      ],
+      child: attachmentUrls.isEmpty
+          ? Text('No attachments', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                const crossAxisCount = 3;
+                const spacing = 8.0;
+                final cellWidth = ((constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).floor();
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                  ),
+                  itemCount: attachmentUrls.length,
+                  itemBuilder: (context, index) {
+                    final url = attachmentUrls[index];
+                    return RepaintBoundary(
+                      key: ValueKey(url),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        clipBehavior: Clip.hardEdge,
+                        child: InkWell(
+                          onTap: () => showDialog(
+                            context: context,
+                            builder: (_) => Dialog(
+                              child: InteractiveViewer(
+                                child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
+                              ),
+                            ),
+                          ),
+                          child: CachedNetworkImage(
+                            imageUrl: url,
+                            fit: BoxFit.cover,
+                            memCacheWidth: cellWidth,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _ActivitySection extends StatelessWidget {
+  const _ActivitySection();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SectionCard(
+      title: 'Activity',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('No activity yet', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletionSection extends StatelessWidget {
+  final List<_TaskItem> tasks;
+  final bool isLocked;
+  final bool isDisabled;
+  final String status;
+  final bool isAdmin;
+  final void Function(int index, bool value)? onToggleTask;
+  final Future<void> Function()? onSubmitReview;
+  final Future<void> Function()? onAdminApprove;
+
+  const _CompletionSection({
+    required this.tasks,
+    required this.isLocked,
+    required this.isDisabled,
+    required this.status,
+    required this.isAdmin,
+    this.onToggleTask,
+    this.onSubmitReview,
+    this.onAdminApprove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SectionCard(
+      title: 'Completion',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isLocked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'This job is completed. Checklist is read-only.',
+                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ...List.generate(tasks.length, (i) {
+            final t = tasks[i];
+            return CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(t.title),
+              value: t.done,
+              onChanged: isLocked
+                  ? null
+                  : (v) {
+                      if (onToggleTask != null) {
+                        onToggleTask!(i, v ?? false);
+                      }
+                    },
+            );
+          }),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              textStyle: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              backgroundColor: isDisabled ? scheme.surfaceContainerHighest : null,
+              foregroundColor: isDisabled ? scheme.onSurface : null,
+            ),
+            onPressed: onSubmitReview,
+            icon: const Icon(Icons.check_circle),
+            label: Text(
+              isDisabled
+                  ? ((status == 'done' || status == 'completed' || status == 'closed') ? 'Done' : 'Reviewed')
+                  : 'Complete job',
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isAdmin && status == 'review')
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                textStyle: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              onPressed: onAdminApprove,
+              icon: const Icon(Icons.task_alt),
+              label: const Text('Approve as Done (Admin)'),
+            ),
+        ],
       ),
     );
   }

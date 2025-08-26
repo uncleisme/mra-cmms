@@ -127,11 +127,12 @@ class _ScheduleList extends StatelessWidget {
     return ResponsiveConstraints(
       child: ListView.separated(
         itemCount: items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, index) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final wo = items[i];
           final effective = wo.dueDate ?? wo.nextScheduledDate ?? wo.createdAt;
           return ListTile(
+            key: ValueKey(wo.id),
             leading: const Icon(Icons.schedule),
             title: Text(
               _titleCase((wo.title ?? 'Untitled')),

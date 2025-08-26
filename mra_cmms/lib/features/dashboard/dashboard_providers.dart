@@ -34,6 +34,12 @@ final todaysLeavesProvider = FutureProvider<List<LeaveRequest>>((ref) async {
   return repo.getTodaysLeaves();
 });
 
+/// Admin: pending leaves needing approval
+final pendingLeavesForApprovalProvider = FutureProvider<List<LeaveRequest>>((ref) async {
+  final repo = ref.read(_leavesRepoProvider);
+  return repo.getPendingForApproval(limit: 100);
+});
+
 
 final myProfileProvider = FutureProvider<Profile?>((ref) async {
   final repo = ref.read(_profilesRepoProvider);
@@ -46,6 +52,10 @@ final recentNotificationsProvider = FutureProvider<List<ActivityNotification>>((
   // Global feed so all users see the same recent updates
   return repo.getAll(limit: 20);
 });
+
+// Admin scope chart removed per request
+
+// Per-user aggregation removed per request
 
 // General notifications provider (family) to mirror leaves/orders provider style
 final notificationsForCurrentUserProvider = FutureProvider.family<List<ActivityNotification>, int>((ref, limit) async {

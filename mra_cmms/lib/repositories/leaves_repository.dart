@@ -23,7 +23,6 @@ class LeavesRepository {
       final raw = (cachedList['items'] as List);
       return compute(_parseLeaves, raw);
     }
-
     final list = await _fetch(uid);
     return list;
   }
@@ -135,5 +134,43 @@ class LeavesRepository {
     }
     final items = await compute(_parseLeaves, page);
     return (items: items, nextCursor: next);
+  }
+
+  /// Admin: fetch leaves with status 'pending' (needing approval)
+  Future<List<LeaveRequest>> getPendingForApproval({int limit = 50}) async {
+    final res = await _client
+        .from('leaves')
+        .select()
+        .eq('status', 'pending')
+        .order('created_at', ascending: true, nullsFirst: true)
+        .order('start_date', ascending: true)
+        .limit(limit);
+    final items = (res as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    return compute(_parseLeaves, items);
+  }
+
+  /// Approve or reject a leave request. Returns (ok, errorMessage).
+  Future<(bool ok, String? error)> updateLeaveApproval({
+    required String id,
+    required bool approve,
+    String? reason,
+  }) async {
+    try {
+      final uid = _client.auth.currentUser?.id;
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final status = approve ? 'approved' : 'rejected';
+      final payload = <String, dynamic>{
+        'status': status,
+        'approved_at': nowIso,
+      };
+      if (uid != null && uid.isNotEmpty) payload['approved_by'] = uid;
+      if (reason != null) payload['reason'] = reason;
+      await _client.from('leaves').update(payload).eq('id', id);
+      return (true, null);
+    } catch (e) {
+      return (false, e.toString());
+    }
   }
 }

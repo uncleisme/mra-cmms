@@ -97,7 +97,7 @@ class WorkOrdersRepository {
               'action': 'approved',
               'entity_id': id,
               'message': msg,
-              'recipients': '{${uid}}',
+              'recipients': '{$uid}',
             });
           }
         }
@@ -193,6 +193,31 @@ class WorkOrdersRepository {
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     return compute(_computeKpis, items);
+  }
+
+  /// Counts Active and Done work orders across ALL users (admin scope).
+  /// Active includes variants: active | in_progress | in progress (case-insensitive common variants)
+  /// Done includes variants: done | completed (case-insensitive common variants)
+  Future<Map<String, int>> getCountsActiveDoneAllUsers() async {
+    // Build OR filters similar to getByStatusPage
+    final activeStatuses = ['active', 'in_progress', 'in progress', 'Active', 'In_Progress', 'In progress'];
+    final doneStatuses = ['done', 'completed', 'Done', 'Completed'];
+
+    Future<int> countFor(List<String> statuses) async {
+      var base = _client.from('work_orders').select('id');
+      if (statuses.length == 1) {
+        base = base.eq('status', statuses.first);
+      } else {
+        final ors = statuses.map((v) => 'status.eq.$v').join(',');
+        base = base.or(ors);
+      }
+      final res = await base as List;
+      return res.length;
+    }
+
+    final active = await countFor(activeStatuses);
+    final done = await countFor(doneStatuses);
+    return {'active': active, 'done': done};
   }
 
   /// Update status for a work order. Returns (ok, errorMessage).
@@ -304,7 +329,7 @@ class WorkOrdersRepository {
     if (statuses.length == 1) {
       base = base.eq('status', statuses.first);
     } else {
-      final ors = statuses.map((v) => 'status.eq.' + v).join(',');
+      final ors = statuses.map((v) => 'status.eq.$v').join(',');
       base = base.or(ors);
     }
 
@@ -327,4 +352,56 @@ class WorkOrdersRepository {
     return (items: items, nextCursor: next);
   }
 
+}
+
+extension WorkOrdersRepositoryCreate on WorkOrdersRepository {
+  /// Inserts a new work order. Returns (ok, errorMessage).
+  /// Minimal required fields: title, description, work_type, priority.
+  /// Optional: due_date, location_id, asset_id, contact_person, contact_number, requested_by.
+  Future<(bool ok, String? error)> createWorkOrder({
+    required String title,
+    required String description,
+    required String workType,
+    required String priority,
+    DateTime? dueDate,
+    String? locationId,
+    String? assetId,
+    String? contactPerson,
+    String? contactNumber,
+    String? requestedBy,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final nowUtcIso = now.toUtc().toIso8601String();
+      final map = <String, dynamic>{
+        'title': title,
+        'description': description,
+        'work_type': workType,
+        'priority': priority,
+        'status': 'Active',
+        'created_date': nowUtcIso,
+        'due_date': dueDate?.toUtc().toIso8601String(),
+        'location_id': locationId,
+        'asset_id': assetId,
+        'contact_person': contactPerson,
+        'contact_number': contactNumber,
+        'requested_by': requestedBy,
+        'created_at': nowUtcIso,
+        'updated_at': nowUtcIso,
+      };
+      // Remove nulls to avoid RLS/DB complaints on some schemas
+      map.removeWhere((key, value) => value == null);
+
+      final inserted = await _client.from('work_orders').insert(map).select().maybeSingle();
+      if (inserted == null) return (false, 'Insert failed');
+      // Cache by id for quick subsequent read
+      final id = (inserted['id'] ?? '').toString();
+      if (id.isNotEmpty) {
+        await _box.put('byId:$id', Map<String, dynamic>.from(inserted));
+      }
+      return (true, null);
+    } catch (e) {
+      return (false, e is PostgrestException ? e.message : e.toString());
+    }
+  }
 }

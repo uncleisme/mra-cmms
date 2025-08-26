@@ -27,6 +27,7 @@ import 'features/profile/profile_page.dart';
 import 'features/dashboard/dashboard_providers.dart';
 import 'core/widgets/section_card.dart';
 import 'features/orders/work_order_details_page.dart';
+import 'features/orders/new_work_order_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/schedule/my_schedule_page.dart';
 import 'core/widgets/responsive_constraints.dart';
@@ -41,6 +42,322 @@ String titleCase(String input) {
       .join(' ');
 }
 
+class PendingWorkOrdersApprovalPage extends ConsumerWidget {
+  const PendingWorkOrdersApprovalPage({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingReviewsProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pending Work Orders Approval')),
+      body: SafeArea(
+        child: pending.when(
+          data: (items) {
+            if (items.isEmpty) {
+              return const Center(child: Text('No work orders awaiting approval'));
+            }
+            return ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final wo = items[index];
+                final titleStr = (() {
+                  final raw = (wo.title ?? 'Untitled').trim();
+                  return raw.isEmpty ? 'Untitled' : titleCase(raw);
+                })();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.inbox_outlined),
+                    title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                            PriorityChip(wo.priority),
+                            if ((wo.requestedBy ?? '').isNotEmpty)
+                              _RequesterName(userId: wo.requestedBy!),
+                          ],
+                        ),
+                        if ((wo.description ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(wo.description!, maxLines: 3, overflow: TextOverflow.ellipsis),
+                          ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.close),
+                                label: const Text('Reject'),
+                                onPressed: () async {
+                                  final ok = await _confirm(context, 'Reject this work order?');
+                                  if (ok != true) return;
+                                  final repo = WorkOrdersRepository();
+                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Active');
+                                  if (!context.mounted) return;
+                                  if (success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order rejected')));
+                                    ref.invalidate(pendingReviewsProvider);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                  }
+                                },
+                              ),
+                              FilledButton.icon(
+                                icon: const Icon(Icons.check),
+                                label: const Text('Approve'),
+                                onPressed: () async {
+                                  final ok = await _confirm(context, 'Approve this work order as Completed?');
+                                  if (ok != true) return;
+                                  final repo = WorkOrdersRepository();
+                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Completed');
+                                  if (!context.mounted) return;
+                                  if (success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order approved')));
+                                    ref.invalidate(pendingReviewsProvider);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                      if (context.mounted) {
+                        ref.invalidate(pendingReviewsProvider);
+                      }
+                    },
+                  ),
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: LinearProgressIndicator()),
+          error: (e, st) => Center(child: Text('Failed to load: $e')),
+        ),
+      ),
+    );
+  }
+}
+class LeavesApprovalSection extends ConsumerWidget {
+  const LeavesApprovalSection({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final titleStyleBold = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
+    final pendingLeaves = ref.watch(pendingLeavesForApprovalProvider);
+    return pendingLeaves.when(
+      data: (items) => RepaintBoundary(
+        child: SectionCard(
+          title: 'Leaves needing approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          count: items.length,
+          onSeeAll: () => Navigator.pushNamed(context, '/leaves/approval'),
+          child: ListTile(
+            leading: const Icon(Icons.beach_access_outlined),
+            title: Text('${items.length} leave request(s) pending'),
+            subtitle: const Text('Tap to review'),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () => Navigator.pushNamed(context, '/leaves/approval'),
+          ),
+        ),
+      ),
+      loading: () => RepaintBoundary(
+        child: SectionCard(
+          title: 'Leaves needing approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+        ),
+      ),
+      error: (e, st) => RepaintBoundary(
+        child: SectionCard(
+          title: 'Leaves needing approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          child: const ListTile(title: Text('Failed to load pending leaves')),
+        ),
+      ),
+    );
+  }
+}
+
+class PendingLeavesApprovalPage extends ConsumerWidget {
+  const PendingLeavesApprovalPage({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingLeaves = ref.watch(pendingLeavesForApprovalProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pending Leaves for Approval')),
+      body: SafeArea(
+        child: pendingLeaves.when(
+          data: (items) {
+            if (items.isEmpty) {
+              return const Center(child: Text('No pending leaves'));
+            }
+            return ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final lv = items[index];
+                final period = '${fmtShortDate(lv.startDate)} → ${fmtShortDate(lv.endDate)}';
+                final type = lv.typeKey.isNotEmpty ? titleCase(lv.typeKey) : 'Leave';
+                final status = lv.status.isNotEmpty ? lv.status : 'pending';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.beach_access_outlined),
+                    title: Text('$type • $period', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('Status: ${titleCase(status)}'),
+                            const SizedBox(width: 12),
+                            Flexible(child: _RequesterName(userId: lv.userId)),
+                          ],
+                        ),
+                        if ((lv.reason ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(lv.reason!, maxLines: 3, overflow: TextOverflow.ellipsis),
+                          ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.close),
+                                label: const Text('Reject'),
+                                onPressed: () async {
+                                  final ok = await _confirm(context, 'Reject this leave request?');
+                                  if (ok != true) return;
+                                  final repo = LeavesRepository();
+                                  final (success, err) = await repo.updateLeaveApproval(id: lv.id, approve: false);
+                                  if (!context.mounted) return;
+                                  if (success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave rejected')));
+                                    ref.invalidate(pendingLeavesForApprovalProvider);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                  }
+                                },
+                              ),
+                              FilledButton.icon(
+                                icon: const Icon(Icons.check),
+                                label: const Text('Approve'),
+                                onPressed: () async {
+                                  final ok = await _confirm(context, 'Approve this leave request?');
+                                  if (ok != true) return;
+                                  final repo = LeavesRepository();
+                                  final (success, err) = await repo.updateLeaveApproval(id: lv.id, approve: true);
+                                  if (!context.mounted) return;
+                                  if (success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave approved')));
+                                    ref.invalidate(pendingLeavesForApprovalProvider);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: LinearProgressIndicator()),
+          error: (e, st) => Center(child: Text('Failed to load: $e')),
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool?> _confirm(BuildContext context, String message) async {
+  return showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Confirm'),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
+      ],
+    ),
+  );
+}
+
+class _RequesterName extends StatefulWidget {
+  final String userId;
+  const _RequesterName({required this.userId});
+  @override
+  State<_RequesterName> createState() => _RequesterNameState();
+}
+
+class _RequesterNameState extends State<_RequesterName> {
+  final _profiles = ProfilesRepository();
+  Future<String?>? _future;
+  @override
+  void initState() {
+    super.initState();
+    _future = () async {
+      try {
+        final p = await _profiles.getById(widget.userId);
+        final name = (p?.fullName ?? '').trim();
+        if (name.isNotEmpty) return name;
+        final email = (p?.email ?? '').trim();
+        return email.isNotEmpty ? email : widget.userId;
+      } catch (_) {
+        return widget.userId;
+      }
+    }();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _future,
+      builder: (context, snapshot) {
+        final text = snapshot.data ?? widget.userId;
+        return Text('User: $text', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall);
+      },
+    );
+  }
+}
 String fmtShortDate(DateTime d) {
   final yy = (d.year % 100).toString().padLeft(2, '0');
   final dd = d.day.toString().padLeft(2, '0');
@@ -80,8 +397,11 @@ class MyApp extends ConsumerWidget {
         '/register': (_) => const RegisterPage(),
         '/dashboard': (_) => const HomeShell(initialIndex: 0),
         '/orders': (_) => const HomeShell(initialIndex: 1),
-    '/orders/review': (_) => const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
+        '/orders/review': (_) => const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
+        '/orders/approval': (_) => const PendingWorkOrdersApprovalPage(),
+        '/orders/new': (_) => const NewWorkOrderPage(),
         '/leaves': (_) => const HomeShell(initialIndex: 2),
+        '/leaves/approval': (_) => const PendingLeavesApprovalPage(),
         '/settings': (_) => const HomeShell(initialIndex: 3),
         '/profile': (_) => const ProfilePage(),
         '/notifications': (_) => const NotificationsPage(),
@@ -260,17 +580,10 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final todaysOrders = ref.watch(todaysOrdersProvider);
-    final recent = ref.watch(recentNotificationsProvider);
     final profile = ref.watch(myProfileProvider);
     // Precompute current time once per build
     final now = DateTime.now();
-    // Cache media size to avoid repeated queries
-    final size = MediaQuery.sizeOf(context);
-    final w = size.width;
-    // Cache theme lookups
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    // Cache media size to avoid repeated queries (moved into widgets where used)
     // Determine role once for this build
     final isAdmin = profile.maybeWhen(
       data: (p) => ((p?.type ?? '').toLowerCase() == 'admin'),
@@ -287,383 +600,388 @@ class DashboardPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Gradient header
-                RepaintBoundary(
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      w < 400 ? 24.0 : 28.0,
-                      16,
-                      w < 400 ? 16.0 : 20.0,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              profile.when(
-                                data: (p) {
-                                  final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
-                                  final hour = now.hour;
-                                  final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-                                  return Text(
-                                    '$greeting, $name',
-                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) * (w >= 700 ? 1.1 : 1.0),
-                                        ),
-                                  );
-                                },
-                                loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
-                                error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Notifications',
-                          onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                          icon: const Icon(Icons.notifications_none, color: Colors.white),
-                        ),
-                        const SizedBox(width: 4),
-                        profile.when(
-                          data: (p) {
-                            final avatarUrl = p?.avatarUrl;
-                            return InkWell(
-                              onTap: () => Navigator.pushNamed(context, '/profile'),
-                              borderRadius: BorderRadius.circular(28),
-                              child: CircleAvatar(
-                                radius: 22,
-                                backgroundColor: Colors.white,
-                                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                                    ? CachedNetworkImageProvider(avatarUrl)
-                                    : null,
-                                child: (avatarUrl == null || avatarUrl.isEmpty)
-                                    ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
-                                    : null,
-                              ),
-                            );
-                          },
-                          loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
-                          error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                DashboardHeader(profile: profile, now: now),
 
                 // Quick actions (admins only)
-                if (isAdmin)
-                  LayoutBuilder(builder: (context, c) {
-                    final w = c.maxWidth;
-                    final isCompact = w < 420;
-                    if (isCompact) {
-                      return RepaintBoundary(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.icon(
-                                onPressed: () => Navigator.pushNamed(context, '/orders'),
-                                icon: const Icon(Icons.add_task),
-                                label: const Text('New order'),
-                                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                              ),
-                            ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () => Navigator.pushNamed(context, '/orders'),
-                                icon: const Icon(Icons.list_alt),
-                                label: const Text('My orders'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                              ),
-                            ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () => Navigator.pushNamed(context, '/leaves'),
-                                icon: const Icon(Icons.beach_access_outlined),
-                                label: const Text('Leaves'),
-                                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return RepaintBoundary(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () => Navigator.pushNamed(context, '/orders'),
-                              icon: const Icon(Icons.add_task),
-                              label: const Text('New order'),
-                              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.pushNamed(context, '/orders'),
-                              icon: const Icon(Icons.list_alt),
-                              label: const Text('My orders'),
-                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.pushNamed(context, '/leaves'),
-                              icon: const Icon(Icons.beach_access_outlined),
-                              label: const Text('Leaves'),
-                              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                if (isAdmin) const QuickActions(),
                 const SizedBox(height: 16),
                 // Technician entry to My Schedule
-                if (!isAdmin)
-                  SectionCard(
-                    title: 'My schedule',
-                    onSeeAll: () => Navigator.pushNamed(context, '/schedule'),
-                    child: ListTile(
-                      leading: const Icon(Icons.schedule),
-                      title: const Text('Open My Schedule'),
-                      subtitle: const Text('View today and this week'),
-                      trailing: const Icon(Icons.arrow_forward_ios),
-                      onTap: () => Navigator.pushNamed(context, '/schedule'),
-                    ),
-                  ),
+                if (!isAdmin) const MyScheduleEntry(),
                 const SizedBox(height: 16),
                 profile.when(
                   data: (p) {
                     final isAdmin = (p?.type ?? '').toLowerCase() == 'admin';
                     if (isAdmin) {
-                      final pending = ref.watch(pendingReviewsProvider);
-                      final titleStyleBold = textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
-                      return pending.when(
-                        data: (items) {
-                          return RepaintBoundary(
-                            child: SectionCard(
-                              title: 'Needs approval',
-                              filled: true,
-                              backgroundColor: cs.secondaryContainer,
-                              foregroundColor: cs.onSecondaryContainer,
-                              titleTextStyle: titleStyleBold,
-                              count: items.length,
-                              onSeeAll: () => Navigator.pushNamed(context, '/orders/review'),
-                              child: ListTile(
-                                leading: const Icon(Icons.inbox_outlined),
-                                title: Text('${items.length} work orders awaiting approval'),
-                                subtitle: const Text('Click to see all'),
-                                trailing: const Icon(Icons.arrow_forward_ios),
-                                onTap: () => Navigator.pushNamed(context, '/orders/review'),
-                              ),
-                            ),
-                          );
-                        },
-                        loading: () => RepaintBoundary(
-                          child: SectionCard(
-                            title: 'Needs approval',
-                            filled: true,
-                            backgroundColor: cs.secondaryContainer,
-                            foregroundColor: cs.onSecondaryContainer,
-                            titleTextStyle: titleStyleBold,
-                            child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                          ),
-                        ),
-                        error: (e, st) => RepaintBoundary(
-                          child: SectionCard(
-                            title: 'Needs approval',
-                            filled: true,
-                            backgroundColor: cs.secondaryContainer,
-                            foregroundColor: cs.onSecondaryContainer,
-                            titleTextStyle: titleStyleBold,
-                            child: const ListTile(title: Text('Failed to load pending reviews')),
-                          ),
-                        ),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: const [
+                          AdminApprovalSection(),
+                          SizedBox(height: 12),
+                          LeavesApprovalSection(),
+                        ],
                       );
                     }
-                    // Non-admin: show original Today's orders card
-                    return todaysOrders.when(
-                      data: (items) {
-                        bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
-                        bool isToday(DateTime? d) {
-                          if (d == null) return false;
-                          final local = d.toLocal();
-                          return isSameDay(local, now);
-                        }
-                        DateTime? eff(wo) {
-                          final status = (wo.status ?? '').toLowerCase();
-                          final dueToday = isToday(wo.dueDate);
-                          final completed = status == 'completed' || status == 'done' || status == 'closed';
-                          final nextToday = completed && isToday(wo.nextScheduledDate);
-                          if (dueToday) return wo.dueDate?.toLocal();
-                          if (nextToday) return wo.nextScheduledDate?.toLocal();
-                          return null;
-                        }
-                        final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
-                        final todayRelevant = withEff.where((e) => e.$2 != null).toList();
-                        todayRelevant.sort((a, b) {
-                          final ad = a.$2!;
-                          final bd = b.$2!;
-                          return ad.compareTo(bd);
-                        });
-                        final visible = todayRelevant.take(5).toList();
-                        return SectionCard(
-                          title: "Today's orders",
-                          filled: true,
-                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                          padding: EdgeInsets.fromLTRB(
-                            w < 360 ? 8 : 12,
-                            w < 360 ? 10 : 14,
-                            w < 360 ? 8 : 12,
-                            w < 360 ? 8 : 12,
-                          ),
-                          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                          count: todayRelevant.length,
-                          onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                          child: Builder(builder: (context) {
-                            if (visible.isEmpty) {
-                              return const ListTile(
-                                leading: Icon(Icons.inbox_outlined),
-                                title: Text('No orders for today'),
-                                subtitle: Text('You are all caught up.'),
-                              );
-                            }
-                            final count = visible.length.clamp(0, 3);
-                            return Column(
-                              children: [
-                                for (var i = 0; i < count; i++) ...[
-                                  if (i > 0) const Divider(height: 1),
-                                  Builder(builder: (context) {
-                                    final wo = visible[i].$1;
-                                    final titleStr = (() {
-                                      final raw = (wo.title ?? 'Untitled').trim();
-                                      final safe = raw.isEmpty ? 'Untitled' : raw;
-                                      return titleCase(safe);
-                                    })();
-                                    return ListTile(
-                                      leading: const Icon(Icons.work_outline),
-                                      title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                      subtitle: Wrap(
-                                        spacing: 8,
-                                        runSpacing: 4,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        children: [
-                                          if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                                          PriorityChip(wo.priority),
-                                        ],
-                                      ),
-                                      visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
-                                      trailing: FilledButton.icon(
-                                        onPressed: () async {
-                                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                                          // Refresh dashboard providers to reflect any status changes
-                                          ref.invalidate(todaysOrdersProvider);
-                                          ref.invalidate(kpisProvider);
-                                          ref.invalidate(recentNotificationsProvider);
-                                        },
-                                        icon: const Icon(Icons.play_arrow),
-                                        label: const Text('Start'),
-                                      ),
-                                    );
-                                  }),
-                                ],
-                              ],
-                            );
-                          }),
-                        );
-                      },
-                      loading: () => SectionCard(
-                        title: "Today's orders",
-                        filled: true,
-                        backgroundColor: const Color(0xFF08234F),
-                        foregroundColor: Colors.white,
-                        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
-                        ),
-                        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                        child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                      ),
-                      error: (e, st) => SectionCard(
-                        title: "Today's orders",
-                        filled: true,
-                        backgroundColor: const Color(0xFF08234F),
-                        foregroundColor: Colors.white,
-                        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
-                        ),
-                        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-                        child: const ListTile(title: Text("Failed to load today's orders")),
-                      ),
-                    );
+                    return TodaysOrdersSection(now: now);
                   },
                   loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
                   error: (e, st) => const SizedBox.shrink(),
                 ),
-            const SizedBox(height: 12),
-            SectionCard(
-              title: 'Recent updates',
-              onSeeAll: () => Navigator.pushNamed(context, '/notifications'),
-              child: recent.when(
-                data: (items) {
-                  if (items.isEmpty) {
-                    return const ListTile(title: Text('No recent updates'));
-                  }
-                  final visible = items.take(5).toList();
-                  return Column(
-                    children: [
-                      for (var i = 0; i < visible.length; i++) ...[
-                        if (i > 0) const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.notifications_active_outlined),
-                          title: Text(visible[i].title ?? 'Notification'),
-                          subtitle: Text(visible[i].message ?? ''),
-                          visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
-                        ),
-                      ]
-                    ],
-                  );
-                },
-                loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
-                error: (e, st) => const ListTile(title: Text('Failed to load notifications')),
-              ),
+                const SizedBox(height: 12),
+                // Middle section cleared (no chart, no recent updates)
+                const SizedBox.shrink(),
+              ]
             ),
-            const SizedBox(height: 24),
-          ]
+          ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 }
+
+// --- Extracted widgets per dash.md guidance ---
+
+class DashboardHeader extends StatelessWidget {
+  final AsyncValue<Profile?> profile;
+  final DateTime now;
+  const DashboardHeader({super.key, required this.profile, required this.now});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.fromLTRB(16, w < 400 ? 24.0 : 28.0, 16, w < 400 ? 16.0 : 20.0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  profile.when(
+                    data: (p) {
+                      final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
+                      final hour = now.hour;
+                      final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                      return Text(
+                        '$greeting, $name',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) * (w >= 700 ? 1.1 : 1.0),
+                            ),
+                      );
+                    },
+                    loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
+                    error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              icon: const Icon(Icons.notifications_none),
+            ),
+            const SizedBox(width: 4),
+            profile.when(
+              data: (p) {
+                final avatarUrl = p?.avatarUrl;
+                return InkWell(
+                  onTap: () => Navigator.pushNamed(context, '/profile'),
+                  borderRadius: BorderRadius.circular(28),
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundColor: Colors.white,
+                    backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                        ? CachedNetworkImageProvider(avatarUrl)
+                        : null,
+                    child: (avatarUrl == null || avatarUrl.isEmpty)
+                        ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
+                        : null,
+                  ),
+                );
+              },
+              loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+              error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class QuickActions extends StatelessWidget {
+  const QuickActions({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final w = c.maxWidth;
+      final isCompact = w < 420;
+      if (isCompact) {
+        return RepaintBoundary(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/orders/new'),
+                  icon: const Icon(Icons.add_task, size: 26),
+                  label: const Text('New Orders'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
+                    textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      return RepaintBoundary(
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/orders/new'),
+                icon: const Icon(Icons.add_task, size: 26),
+                label: const Text('New Orders'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
+                  textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class MyScheduleEntry extends StatelessWidget {
+  const MyScheduleEntry({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'My schedule',
+      onSeeAll: () => Navigator.pushNamed(context, '/schedule'),
+      child: ListTile(
+        leading: const Icon(Icons.schedule),
+        title: const Text('Open My Schedule'),
+        subtitle: const Text('View today and this week'),
+        trailing: const Icon(Icons.arrow_forward_ios),
+        onTap: () => Navigator.pushNamed(context, '/schedule'),
+      ),
+    );
+  }
+}
+
+class AdminApprovalSection extends ConsumerWidget {
+  const AdminApprovalSection({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final titleStyleBold = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
+    final pending = ref.watch(pendingReviewsProvider);
+    return pending.when(
+      data: (items) => RepaintBoundary(
+        child: SectionCard(
+          title: 'Needs approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          count: items.length,
+          onSeeAll: () => Navigator.pushNamed(context, '/orders/approval'),
+          child: ListTile(
+            leading: const Icon(Icons.inbox_outlined),
+            title: Text('${items.length} work orders awaiting approval'),
+            subtitle: const Text('Click to see all'),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () => Navigator.pushNamed(context, '/orders/approval'),
+          ),
+        ),
+      ),
+      loading: () => RepaintBoundary(
+        child: SectionCard(
+          title: 'Needs approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+        ),
+      ),
+      error: (e, st) => RepaintBoundary(
+        child: SectionCard(
+          title: 'Needs approval',
+          filled: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          square: true,
+          outlined: true,
+          margin: EdgeInsets.zero,
+          maxWidth: double.infinity,
+          titleTextStyle: titleStyleBold,
+          child: const ListTile(title: Text('Failed to load pending reviews')),
+        ),
+      ),
+    );
+  }
+}
+
+// Processing moved out of build
+List<(WorkOrder, DateTime?)> computeTodayRelevant(List<WorkOrder> items, DateTime now) {
+  bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  bool isToday(DateTime? d) {
+    if (d == null) return false;
+    final local = d.toLocal();
+    return isSameDay(local, now);
+  }
+  DateTime? eff(WorkOrder wo) {
+    final status = (wo.status ?? '').toLowerCase();
+    final dueToday = isToday(wo.dueDate);
+    final completed = status == 'completed' || status == 'done' || status == 'closed';
+    final nextToday = completed && isToday(wo.nextScheduledDate);
+    if (dueToday) return wo.dueDate?.toLocal();
+    if (nextToday) return wo.nextScheduledDate?.toLocal();
+    return null;
+  }
+  final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
+  final todayRelevant = withEff.where((e) => e.$2 != null).toList();
+  todayRelevant.sort((a, b) => a.$2!.compareTo(b.$2!));
+  return todayRelevant;
+}
+
+class TodaysOrdersSection extends ConsumerWidget {
+  final DateTime now;
+  const TodaysOrdersSection({super.key, required this.now});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final todaysOrders = ref.watch(todaysOrdersProvider);
+    final w = MediaQuery.sizeOf(context).width;
+    return todaysOrders.when(
+      data: (items) {
+        final todayRelevant = computeTodayRelevant(items, now);
+        final visible = todayRelevant.take(5).toList();
+        return SectionCard(
+          title: "Today's orders",
+          filled: true,
+          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+          foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+          padding: EdgeInsets.fromLTRB(
+            w < 360 ? 8 : 12,
+            w < 360 ? 10 : 14,
+            w < 360 ? 8 : 12,
+            w < 360 ? 8 : 12,
+          ),
+          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          count: todayRelevant.length,
+          onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+          child: Builder(builder: (context) {
+            if (visible.isEmpty) {
+              return const ListTile(
+                leading: Icon(Icons.inbox_outlined),
+                title: Text('No orders for today'),
+                subtitle: Text('You are all caught up.'),
+              );
+            }
+            final count = visible.length.clamp(0, 3);
+            return Column(
+              children: [
+                for (var i = 0; i < count; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  Builder(builder: (context) {
+                    final wo = visible[i].$1;
+                    final titleStr = (() {
+                      final raw = (wo.title ?? 'Untitled').trim();
+                      final safe = raw.isEmpty ? 'Untitled' : raw;
+                      return titleCase(safe);
+                    })();
+                    return ListTile(
+                      leading: const Icon(Icons.work_outline),
+                      title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                          PriorityChip(wo.priority),
+                        ],
+                      ),
+                      visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
+                      trailing: FilledButton.icon(
+                        onPressed: () async {
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                          // Refresh dashboard providers to reflect any status changes
+                          ref.invalidate(todaysOrdersProvider);
+                          ref.invalidate(kpisProvider);
+                          ref.invalidate(recentNotificationsProvider);
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Start'),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            );
+          }),
+        );
+      },
+      loading: () => SectionCard(
+        title: "Today's orders",
+        filled: true,
+        backgroundColor: const Color(0xFF08234F),
+        foregroundColor: Colors.white,
+        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+        ),
+        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+        child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+      ),
+      error: (e, st) => SectionCard(
+        title: "Today's orders",
+        filled: true,
+        backgroundColor: const Color(0xFF08234F),
+        foregroundColor: Colors.white,
+        titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+        ),
+        onSeeAll: () => Navigator.pushNamed(context, '/orders'),
+        child: const ListTile(title: Text("Failed to load today's orders")),
+      ),
+    );
+  }
+}
+
+// RecentUpdatesSection removed per request
+
+// AdminChartSection and bar column removed per request
 
 class _TodaysLeavesSection extends StatefulWidget {
   final String userId;

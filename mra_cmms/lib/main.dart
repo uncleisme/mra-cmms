@@ -107,11 +107,11 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-  final mode = ref.watch(themeModeProvider);
-  // Build text theme using Google Fonts util; change fonts as desired
-  final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
-  final appTextTheme = AppTypography.textTheme(baseTextTheme);
-  final materialTheme = MaterialTheme(appTextTheme);
+    final mode = ref.watch(themeModeProvider);
+    // Build text theme using Google Fonts util; change fonts as desired
+    final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
+    final appTextTheme = AppTypography.textTheme(baseTextTheme);
+    final materialTheme = MaterialTheme(appTextTheme);
     return MaterialApp(
       title: 'MRA CMMS',
       theme: materialTheme.light(),
@@ -1994,24 +1994,28 @@ class SettingsPage extends ConsumerWidget {
                               title: const Text('System'),
                               value: ThemeMode.system,
                               groupValue: tempValue,
-                              onChanged: (val) => setState(() => tempValue = val!),
+                              onChanged: (val) =>
+                                  setState(() => tempValue = val!),
                             ),
                             RadioListTile<ThemeMode>(
                               title: const Text('Light'),
                               value: ThemeMode.light,
                               groupValue: tempValue,
-                              onChanged: (val) => setState(() => tempValue = val!),
+                              onChanged: (val) =>
+                                  setState(() => tempValue = val!),
                             ),
                             RadioListTile<ThemeMode>(
                               title: const Text('Dark'),
                               value: ThemeMode.dark,
                               groupValue: tempValue,
-                              onChanged: (val) => setState(() => tempValue = val!),
+                              onChanged: (val) =>
+                                  setState(() => tempValue = val!),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: ElevatedButton(
-                                onPressed: () => Navigator.pop(context, tempValue),
+                                onPressed: () =>
+                                    Navigator.pop(context, tempValue),
                                 child: const Text('Apply'),
                               ),
                             ),

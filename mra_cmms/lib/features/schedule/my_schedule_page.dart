@@ -14,7 +14,8 @@ class MySchedulePage extends ConsumerStatefulWidget {
   ConsumerState<MySchedulePage> createState() => _MySchedulePageState();
 }
 
-class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTickerProviderStateMixin {
+class _MySchedulePageState extends ConsumerState<MySchedulePage>
+    with SingleTickerProviderStateMixin {
   final _repo = WorkOrdersRepository();
   late Future<List<WorkOrder>> _future;
 
@@ -31,12 +32,14 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
     await _future;
   }
 
-  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   DateTime? _effectiveDate(WorkOrder wo) {
     final status = (wo.status ?? '').toLowerCase();
     final due = wo.dueDate?.toLocal();
-    final completed = status == 'completed' || status == 'done' || status == 'closed';
+    final completed =
+        status == 'completed' || status == 'done' || status == 'closed';
     final nextDate = wo.nextScheduledDate?.toLocal();
     if (due != null) return due;
     if (completed && nextDate != null) return nextDate; // for PM follow-up
@@ -45,12 +48,21 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
 
   List<WorkOrder> _filterToday(List<WorkOrder> items) {
     final now = DateTime.now();
-    final filtered = items.where((wo) {
-      final d = _effectiveDate(wo);
-      return d != null && _isSameDay(d, now);
-    }).toList()
-      ..sort((a, b) => _effectiveDate(a)!.compareTo(_effectiveDate(b)!));
-    debugPrint('Fetched work orders: \\n' + items.map((wo) => 'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}').join(', '));
+    final filtered =
+        items.where((wo) {
+            final d = _effectiveDate(wo);
+            return d != null && _isSameDay(d, now);
+          }).toList()
+          ..sort((a, b) => _effectiveDate(a)!.compareTo(_effectiveDate(b)!));
+    debugPrint(
+      'Fetched work orders: \\n' +
+          items
+              .map(
+                (wo) =>
+                    'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}',
+              )
+              .join(', '),
+    );
     debugPrint('Filtered today: ' + filtered.map((wo) => wo.id).join(', '));
     return filtered;
   }
@@ -59,9 +71,11 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
     final now = DateTime.now();
     final end = now.add(const Duration(days: 7));
     return items.where((wo) {
-      final d = _effectiveDate(wo);
-      return d != null && d.isAfter(now.subtract(const Duration(days: 1))) && d.isBefore(end);
-    }).toList()
+        final d = _effectiveDate(wo);
+        return d != null &&
+            d.isAfter(now.subtract(const Duration(days: 1))) &&
+            d.isBefore(end);
+      }).toList()
       ..sort((a, b) => _effectiveDate(a)!.compareTo(_effectiveDate(b)!));
   }
 
@@ -73,10 +87,12 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
         appBar: AppBar(
           title: const Text('My Schedule'),
           centerTitle: true,
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Today'),
-            Tab(text: 'Week'),
-          ]),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Today'),
+              Tab(text: 'Week'),
+            ],
+          ),
         ),
         body: RefreshIndicator(
           onRefresh: _refresh,
@@ -87,10 +103,12 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
                 return const Center(child: CircularProgressIndicator());
               }
               final items = List<WorkOrder>.of(snapshot.data ?? const []);
-              return TabBarView(children: [
-                _ScheduleList(items: _filterToday(items)),
-                _ScheduleList(items: _filterWeek(items)),
-              ]);
+              return TabBarView(
+                children: [
+                  _ScheduleList(items: _filterToday(items)),
+                  _ScheduleList(items: _filterWeek(items)),
+                ],
+              );
             },
           ),
         ),
@@ -108,7 +126,11 @@ class _ScheduleList extends StatelessWidget {
     if (s.isEmpty) return input;
     return s
         .split(RegExp(r'\s+'))
-        .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+        .map(
+          (w) => w.isEmpty
+              ? w
+              : (w[0].toUpperCase() + w.substring(1).toLowerCase()),
+        )
         .join(' ');
   }
 
@@ -150,13 +172,18 @@ class _ScheduleList extends StatelessWidget {
                 if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
                 PriorityChip(wo.priority),
                 if (effective != null)
-                  Text(_fmtShort(effective.toLocal()), style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    _fmtShort(effective.toLocal()),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
               ],
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)),
+              MaterialPageRoute(
+                builder: (_) => WorkOrderDetailsPage(id: wo.id),
+              ),
             ),
           );
         },

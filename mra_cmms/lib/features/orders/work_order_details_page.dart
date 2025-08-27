@@ -342,9 +342,12 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   _HeaderSection(wo: wo, id: wo.id),
                   const SizedBox(height: 16),
                   _KeyInfoSection(
-                    created: wo.createdDate?.toIso8601String().split('T').first ?? '-',
+                    created:
+                        wo.createdDate?.toIso8601String().split('T').first ??
+                        '-',
                     due: wo.dueDate?.toIso8601String().split('T').first ?? '-',
-                    requesterName: requester?.fullName ?? (wo.requestedBy ?? '-'),
+                    requesterName:
+                        requester?.fullName ?? (wo.requestedBy ?? '-'),
                     assigneeName: assignee?.fullName,
                   ),
                   const SizedBox(height: 16),
@@ -364,7 +367,9 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                         ? () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LocationDetailsPage(locationId: location.locationId),
+                                builder: (_) => LocationDetailsPage(
+                                  locationId: location.locationId,
+                                ),
                               ),
                             );
                           }
@@ -373,7 +378,10 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
                   const SizedBox(height: 16),
                   _DescriptionSection(text: wo.description ?? '-'),
                   const SizedBox(height: 16),
-                  _AttachmentsSection(attachmentUrls: const [], onPick: (_) async {}),
+                  _AttachmentsSection(
+                    attachmentUrls: const [],
+                    onPick: (_) async {},
+                  ),
                   const SizedBox(height: 16),
                   const _ActivitySection(),
                   const SizedBox(height: 16),
@@ -401,12 +409,27 @@ class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
     );
   }
 
-  Future<AssetLocationProfiles> _fetchAssetLocationProfiles(WorkOrder wo) async {
-    final asset = wo.assetId != null ? await _assetsRepo.getById(wo.assetId!) : null;
-    final location = wo.locationId != null ? await _locationsRepo.getById(wo.locationId!) : null;
-    final requester = wo.requestedBy != null ? await _profilesRepo.getById(wo.requestedBy!) : null;
-    final assignee = wo.assignedTo != null ? await _profilesRepo.getById(wo.assignedTo!) : null;
-    return AssetLocationProfiles(asset: asset, location: location, requester: requester, assignee: assignee);
+  Future<AssetLocationProfiles> _fetchAssetLocationProfiles(
+    WorkOrder wo,
+  ) async {
+    final asset = wo.assetId != null
+        ? await _assetsRepo.getById(wo.assetId!)
+        : null;
+    final location = wo.locationId != null
+        ? await _locationsRepo.getById(wo.locationId!)
+        : null;
+    final requester = wo.requestedBy != null
+        ? await _profilesRepo.getById(wo.requestedBy!)
+        : null;
+    final assignee = wo.assignedTo != null
+        ? await _profilesRepo.getById(wo.assignedTo!)
+        : null;
+    return AssetLocationProfiles(
+      asset: asset,
+      location: location,
+      requester: requester,
+      assignee: assignee,
+    );
   }
 }
 
@@ -415,5 +438,10 @@ class AssetLocationProfiles {
   final LocationInfo? location;
   final Profile? requester;
   final Profile? assignee;
-  AssetLocationProfiles({this.asset, this.location, this.requester, this.assignee});
+  AssetLocationProfiles({
+    this.asset,
+    this.location,
+    this.requester,
+    this.assignee,
+  });
 }

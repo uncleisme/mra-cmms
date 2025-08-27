@@ -208,12 +208,23 @@ class WorkOrdersRepository {
     }
 
     final parsed = await compute(_parseWorkOrders, items);
-    debugPrint('getTodaysAssigned: fetched \\${parsed.length} work orders: ' + parsed.map((wo) => 'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}').join(', '));
+    debugPrint(
+      'getTodaysAssigned: fetched \\${parsed.length} work orders: ' +
+          parsed
+              .map(
+                (wo) =>
+                    'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}',
+              )
+              .join(', '),
+    );
     final filtered = parsed.where((wo) {
       final d = effectiveDate(wo);
       return d != null && isSameDay(d, now);
     }).toList()..sort((a, b) => effectiveDate(a)!.compareTo(effectiveDate(b)!));
-    debugPrint('getTodaysAssigned: filtered today: ' + filtered.map((wo) => wo.id).join(', '));
+    debugPrint(
+      'getTodaysAssigned: filtered today: ' +
+          filtered.map((wo) => wo.id).join(', '),
+    );
     return filtered;
   }
 

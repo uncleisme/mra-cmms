@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -31,6 +31,26 @@ import 'features/orders/new_work_order_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/schedule/my_schedule_page.dart';
 import 'core/widgets/responsive_constraints.dart';
+import 'core/widgets/font_size_setting_tile.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Font size options
+enum AppFontSize { small, medium, large }
+
+final fontSizeProvider = StateProvider<AppFontSize>(
+  (ref) => AppFontSize.medium,
+);
+
+double getFontScale(AppFontSize size) {
+  switch (size) {
+    case AppFontSize.small:
+      return 0.85;
+    case AppFontSize.medium:
+      return 1.0;
+    case AppFontSize.large:
+      return 1.18;
+  }
+}
 
 // Shared lightweight helpers to reduce allocations in build methods
 String titleCase(String input) {
@@ -193,212 +213,6 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
   }
 }
 
-class LeavesApprovalSection extends ConsumerWidget {
-  const LeavesApprovalSection({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final titleStyleBold = Theme.of(
-      context,
-    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
-    final pendingLeaves = ref.watch(pendingLeavesForApprovalProvider);
-    return pendingLeaves.when(
-      data: (items) => RepaintBoundary(
-        child: SectionCard(
-          title: 'Leaves needing approval',
-          filled: false,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          square: true,
-          outlined: true,
-          margin: EdgeInsets.zero,
-          maxWidth: double.infinity,
-          titleTextStyle: titleStyleBold,
-          count: items.length,
-          onSeeAll: () => Navigator.pushNamed(context, '/leaves/approval'),
-          child: ListTile(
-            leading: const Icon(Icons.beach_access_outlined),
-            title: Text('${items.length} leave request(s) pending'),
-            subtitle: const Text('Tap to review'),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () => Navigator.pushNamed(context, '/leaves/approval'),
-          ),
-        ),
-      ),
-      loading: () => RepaintBoundary(
-        child: SectionCard(
-          title: 'Leaves needing approval',
-          filled: false,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          square: true,
-          outlined: true,
-          margin: EdgeInsets.zero,
-          maxWidth: double.infinity,
-          titleTextStyle: titleStyleBold,
-          child: const Padding(
-            padding: EdgeInsets.all(12),
-            child: LinearProgressIndicator(),
-          ),
-        ),
-      ),
-      error: (e, st) => RepaintBoundary(
-        child: SectionCard(
-          title: 'Leaves needing approval',
-          filled: false,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          square: true,
-          outlined: true,
-          margin: EdgeInsets.zero,
-          maxWidth: double.infinity,
-          titleTextStyle: titleStyleBold,
-          child: const ListTile(title: Text('Failed to load pending leaves')),
-        ),
-      ),
-    );
-  }
-}
-
-class PendingLeavesApprovalPage extends ConsumerWidget {
-  const PendingLeavesApprovalPage({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pendingLeaves = ref.watch(pendingLeavesForApprovalProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pending Leaves for Approval')),
-      body: SafeArea(
-        child: pendingLeaves.when(
-          data: (items) {
-            if (items.isEmpty) {
-              return const Center(child: Text('No pending leaves'));
-            }
-            return ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final lv = items[index];
-                final period =
-                    '${fmtShortDate(lv.startDate)} → ${fmtShortDate(lv.endDate)}';
-                final type = lv.typeKey.isNotEmpty
-                    ? titleCase(lv.typeKey)
-                    : 'Leave';
-                final status = lv.status.isNotEmpty ? lv.status : 'pending';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 4,
-                  ),
-                  child: ListTile(
-                    leading: const Icon(Icons.beach_access_outlined),
-                    title: Text(
-                      '$type • $period',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text('Status: ${titleCase(status)}'),
-                            const SizedBox(width: 12),
-                            Flexible(child: _RequesterName(userId: lv.userId)),
-                          ],
-                        ),
-                        if ((lv.reason ?? '').isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(
-                              lv.reason!,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Wrap(
-                            spacing: 8,
-                            children: [
-                              OutlinedButton.icon(
-                                icon: const Icon(Icons.close),
-                                label: const Text('Reject'),
-                                onPressed: () async {
-                                  final ok = await _confirm(
-                                    context,
-                                    'Reject this leave request?',
-                                  );
-                                  if (ok != true) return;
-                                  final repo = LeavesRepository();
-                                  final (success, err) = await repo
-                                      .updateLeaveApproval(
-                                        id: lv.id,
-                                        approve: false,
-                                      );
-                                  if (!context.mounted) return;
-                                  if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Leave rejected'),
-                                      ),
-                                    );
-                                    ref.invalidate(
-                                      pendingLeavesForApprovalProvider,
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Failed: $err')),
-                                    );
-                                  }
-                                },
-                              ),
-                              FilledButton.icon(
-                                icon: const Icon(Icons.check),
-                                label: const Text('Approve'),
-                                onPressed: () async {
-                                  final ok = await _confirm(
-                                    context,
-                                    'Approve this leave request?',
-                                  );
-                                  if (ok != true) return;
-                                  final repo = LeavesRepository();
-                                  final (success, err) = await repo
-                                      .updateLeaveApproval(
-                                        id: lv.id,
-                                        approve: true,
-                                      );
-                                  if (!context.mounted) return;
-                                  if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Leave approved'),
-                                      ),
-                                    );
-                                    ref.invalidate(
-                                      pendingLeavesForApprovalProvider,
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Failed: $err')),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: LinearProgressIndicator()),
-          error: (e, st) => Center(child: Text('Failed to load: $e')),
-        ),
-      ),
-    );
-  }
-}
-
 Future<bool?> _confirm(BuildContext context, String message) async {
   return showDialog<bool>(
     context: context,
@@ -486,9 +300,12 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    final fontSize = ref.watch(fontSizeProvider);
+    final fontScale = getFontScale(fontSize);
     // Build text theme using Google Fonts util; change fonts as desired
     final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
-    final appTextTheme = AppTypography.textTheme(baseTextTheme);
+    final scaledTextTheme = baseTextTheme.apply(fontSizeFactor: fontScale);
+    final appTextTheme = AppTypography.textTheme(scaledTextTheme);
     final materialTheme = MaterialTheme(appTextTheme);
     return MaterialApp(
       title: 'MRA CMMS',
@@ -503,11 +320,9 @@ class MyApp extends ConsumerWidget {
         '/orders': (_) => const HomeShell(initialIndex: 1),
         '/orders/review': (_) =>
             const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
-        // '/orders/approval': (_) =>
-        //     const PendingWorkOrdersApprovalPage(), // Removed
         '/orders/new': (_) => const NewWorkOrderPage(),
         '/leaves': (_) => const HomeShell(initialIndex: 2),
-        '/leaves/approval': (_) => const PendingLeavesApprovalPage(),
+        // '/leaves/approval': (_) => const PendingLeavesApprovalPage(),
         '/settings': (_) => const HomeShell(initialIndex: 3),
         '/profile': (_) => const ProfilePage(),
         '/notifications': (_) => const NotificationsPage(),
@@ -739,7 +554,7 @@ class DashboardPage extends ConsumerWidget {
                         children: const [
                           AdminApprovalSection(),
                           SizedBox(height: 12),
-                          LeavesApprovalSection(),
+                          // LeavesApprovalSection(),
                         ],
                       );
                     }
@@ -2360,7 +2175,7 @@ class SettingsPage extends ConsumerWidget {
                       children: [
                         const ListTile(
                           title: Text(
-                            'Sort by',
+                            'Theme',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -2391,6 +2206,9 @@ class SettingsPage extends ConsumerWidget {
               if (picked != null) controller.setMode(picked);
             },
           ),
+
+          // Font size setting
+          FontSizeSettingTile(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text(
@@ -2404,47 +2222,7 @@ class SettingsPage extends ConsumerWidget {
             subtitle: const Text('Photo, name, and details'),
             onTap: () => Navigator.pushNamed(context, '/profile'),
           ),
-          const Divider(height: 24),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text(
-              'Session',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Sign out'),
-            onTap: () async {
-              await Supabase.instance.client.auth.signOut();
-              // Clear all user-related Hive boxes
-              await Future.wait([
-                Hive.box<Map>('profiles_box').clear(),
-                Hive.box<Map>('assets_box').clear(),
-                Hive.box<Map>('leaves_box').clear(),
-                Hive.box<Map>('work_orders_box').clear(),
-                Hive.box<Map>('locations_box').clear(),
-              ]);
-              // Invalidate dashboard-related providers
-              if (context.mounted) {
-                final container = ProviderScope.containerOf(
-                  context,
-                  listen: false,
-                );
-                container.invalidate(kpisProvider);
-                container.invalidate(todaysOrdersProvider);
-                container.invalidate(pendingReviewsProvider);
-                container.invalidate(todaysLeavesProvider);
-                container.invalidate(pendingLeavesForApprovalProvider);
-                container.invalidate(myProfileProvider);
-                container.invalidate(recentNotificationsProvider);
-                // Add more if needed
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/', (route) => false);
-              }
-            },
-          ),
+          // Session section and sign out removed for minimal settings UI
         ],
       ),
       bottomNavigationBar: showNav

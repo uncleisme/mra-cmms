@@ -4,11 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../dashboard/dashboard_providers.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:mime/mime.dart' as mime;
 import '../../models/profile.dart';
 import '../../repositories/profiles_repository.dart';
-import '../../core/widgets/responsive_constraints.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,6 +15,70 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  Future<void> _changePassword() async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Change Password'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'New password',
+                hintText: 'Enter new password',
+              ),
+              validator: (v) =>
+                  (v == null || v.length < 6) ? 'Min 6 characters' : null,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(context, controller.text);
+                }
+              },
+              child: const Text('Change'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null && result.isNotEmpty) {
+      try {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: result),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Password updated successfully')),
+          );
+        }
+      } on AuthException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed: ${e.message}')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update password')),
+          );
+        }
+      }
+    }
+  }
+
   final repo = ProfilesRepository();
   late Future<Profile?> _future;
 
@@ -36,14 +97,38 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _editName(Profile p) async {
     final controller = TextEditingController(text: p.fullName ?? '');
+    final formKey = GlobalKey<FormState>();
     final val = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Edit name'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Full name'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: controller,
+                  maxLength: 15,
+                  decoration: const InputDecoration(
+                    labelText: 'Full name',
+                    counterText: '',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter name';
+                    if (v.trim().length > 15) return 'Max 15 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Tip: Name is limited to 15 characters (including spaces).',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -51,7 +136,11 @@ class _ProfilePageState extends State<ProfilePage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(context, controller.text.trim());
+                }
+              },
               child: const Text('Save'),
             ),
           ],
@@ -69,29 +158,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _changePhoto() async {
-    final picker = ImagePicker();
-    final xfile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-      imageQuality: 85,
-    );
-    if (xfile == null) return;
-    final bytes = await xfile.readAsBytes();
-    final type = mime.lookupMimeType(xfile.name) ?? 'image/jpeg';
-    await repo.uploadAvatar(
-      bytes: bytes,
-      filename: xfile.name,
-      contentType: type,
-    );
-    await _refresh();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Photo updated')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     String fmt(DateTime d) {
@@ -101,6 +167,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Profile'),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: FutureBuilder<Profile?>(
@@ -114,276 +186,157 @@ class _ProfilePageState extends State<ProfilePage> {
               return const Center(child: Text('No profile found'));
             }
 
-            final scheme = Theme.of(context).colorScheme;
-            final nameStyle = Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700, color: Colors.white);
-            final emailStyle = Theme.of(
+            final nameStyle = Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.white70);
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
+            final emailStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            );
 
-            return CustomScrollView(
+            return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverAppBar(
-                  pinned: true,
-                  stretch: true,
-                  expandedHeight: 220,
-                  title: const Text('Profile'),
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [scheme.primary, scheme.primaryContainer],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 48,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage:
+                          (p.avatarUrl != null && p.avatarUrl!.isNotEmpty)
+                          ? CachedNetworkImageProvider(p.avatarUrl!)
+                          : null,
+                      child: (p.avatarUrl == null || p.avatarUrl!.isEmpty)
+                          ? const Icon(
+                              Icons.person,
+                              size: 48,
+                              color: Colors.grey,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      p.fullName ?? '-',
+                      style: nameStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      p.email ?? '-',
+                      style: emailStyle,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Account',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  16,
-                                  24,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 44,
-                                          backgroundColor: Colors.white24,
-                                          backgroundImage:
-                                              (p.avatarUrl != null &&
-                                                  p.avatarUrl!.isNotEmpty)
-                                              ? CachedNetworkImageProvider(
-                                                  p.avatarUrl!,
-                                                )
-                                              : null,
-                                          child:
-                                              (p.avatarUrl == null ||
-                                                  p.avatarUrl!.isEmpty)
-                                              ? const Icon(
-                                                  Icons.person,
-                                                  size: 44,
-                                                  color: Colors.white,
-                                                )
-                                              : null,
-                                        ),
-                                        Positioned(
-                                          right: 0,
-                                          bottom: 0,
-                                          child: Material(
-                                            color: scheme.secondary,
-                                            shape: const CircleBorder(),
-                                            child: InkWell(
-                                              customBorder:
-                                                  const CircleBorder(),
-                                              onTap: _changePhoto,
-                                              child: const Padding(
-                                                padding: EdgeInsets.all(8),
-                                                child: Icon(
-                                                  Icons.camera_alt,
-                                                  size: 18,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  p.fullName ?? '-',
-                                                  style: nameStyle,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            p.email ?? '-',
-                                            style: emailStyle,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          leading: const Icon(Icons.edit),
+                          title: const Text('Edit Name'),
+                          subtitle: Text(p.fullName ?? '-'),
+                          onTap: () => _editName(p),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.email_outlined),
+                          title: const Text('Email'),
+                          subtitle: Text(p.email ?? '-'),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.badge_outlined),
+                          title: const Text('Role'),
+                          subtitle: Text(p.type ?? '-'),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.lock_outline),
+                          title: const Text('Change Password'),
+                          subtitle: const Text('Update your account password'),
+                          onTap: _changePassword,
+                        ),
+                        if (p.createdAt != null)
+                          ListTile(
+                            leading: const Icon(Icons.calendar_today_outlined),
+                            title: const Text('Joined'),
+                            subtitle: Text(fmt(p.createdAt!)),
                           ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: ResponsiveConstraints(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
-                      child: Column(
-                        children: [
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Account',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ListTile(
-                                    leading: const Icon(Icons.email_outlined),
-                                    title: const Text('Email'),
-                                    subtitle: Text(p.email ?? '-'),
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(Icons.badge_outlined),
-                                    title: const Text('Role'),
-                                    subtitle: Text(p.type ?? '-'),
-                                  ),
-                                  if (p.createdAt != null)
-                                    ListTile(
-                                      leading: const Icon(
-                                        Icons.calendar_today_outlined,
-                                      ),
-                                      title: const Text('Joined'),
-                                      subtitle: Text(fmt(p.createdAt!)),
-                                    ),
-                                ],
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('Sign out'),
+                    subtitle: const Text('Sign out of your account'),
+                    onTap: () async {
+                      final navigator = Navigator.of(context);
+                      final confirm =
+                          await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Sign out?'),
+                              content: const Text(
+                                'Are you sure you want to sign out?',
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Card(
-                            child: Column(
-                              children: [
-                                ListTile(
-                                  leading: const Icon(Icons.edit_outlined),
-                                  title: const Text('Edit name'),
-                                  subtitle: const Text(
-                                    'Update your display name',
-                                  ),
-                                  onTap: () => _editName(p),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
                                 ),
-                                const Divider(height: 1),
-                                ListTile(
-                                  leading: const Icon(Icons.image_outlined),
-                                  title: const Text('Change photo'),
-                                  subtitle: const Text(
-                                    'Upload a new profile picture',
-                                  ),
-                                  onTap: _changePhoto,
-                                ),
-                                const Divider(height: 1),
-                                ListTile(
-                                  leading: const Icon(Icons.logout),
-                                  title: const Text('Sign out'),
-                                  subtitle: const Text(
-                                    'Sign out of your account',
-                                  ),
-                                  onTap: () async {
-                                    final navigator = Navigator.of(context);
-                                    final confirm =
-                                        await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            title: const Text('Sign out?'),
-                                            content: const Text(
-                                              'Are you sure you want to sign out?',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(ctx, false),
-                                                child: const Text('Cancel'),
-                                              ),
-                                              FilledButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(ctx, true),
-                                                child: const Text('Sign out'),
-                                              ),
-                                            ],
-                                          ),
-                                        ) ??
-                                        false;
-                                    if (!confirm) return;
-                                    await Supabase.instance.client.auth
-                                        .signOut();
-                                    // Clear all user-related Hive boxes
-                                    await Future.wait([
-                                      Hive.box<Map>('profiles_box').clear(),
-                                      Hive.box<Map>('assets_box').clear(),
-                                      Hive.box<Map>('leaves_box').clear(),
-                                      Hive.box<Map>('work_orders_box').clear(),
-                                      Hive.box<Map>('locations_box').clear(),
-                                    ]);
-                                    // Invalidate dashboard-related providers
-                                    if (mounted) {
-                                      final container =
-                                          ProviderScope.containerOf(
-                                            context,
-                                            listen: false,
-                                          );
-                                      container.invalidate(kpisProvider);
-                                      container.invalidate(
-                                        todaysOrdersProvider,
-                                      );
-                                      container.invalidate(
-                                        pendingReviewsProvider,
-                                      );
-                                      container.invalidate(
-                                        todaysLeavesProvider,
-                                      );
-                                      container.invalidate(
-                                        pendingLeavesForApprovalProvider,
-                                      );
-                                      container.invalidate(myProfileProvider);
-                                      container.invalidate(
-                                        recentNotificationsProvider,
-                                      );
-                                      // Add more if needed
-                                    }
-                                    if (!mounted) return;
-                                    navigator.pushNamedAndRemoveUntil(
-                                      '/login',
-                                      (_) => false,
-                                    );
-                                  },
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Sign out'),
                                 ),
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
+                          ) ??
+                          false;
+                      if (!confirm) return;
+                      await Supabase.instance.client.auth.signOut();
+                      // Clear all user-related Hive boxes
+                      await Future.wait([
+                        Hive.box<Map>('profiles_box').clear(),
+                        Hive.box<Map>('assets_box').clear(),
+                        Hive.box<Map>('leaves_box').clear(),
+                        Hive.box<Map>('work_orders_box').clear(),
+                        Hive.box<Map>('locations_box').clear(),
+                      ]);
+                      // Invalidate dashboard-related providers
+                      if (mounted) {
+                        final container = ProviderScope.containerOf(
+                          context,
+                          listen: false,
+                        );
+                        container.invalidate(kpisProvider);
+                        container.invalidate(todaysOrdersProvider);
+                        container.invalidate(pendingReviewsProvider);
+                        container.invalidate(todaysLeavesProvider);
+                        container.invalidate(pendingLeavesForApprovalProvider);
+                        container.invalidate(myProfileProvider);
+                        container.invalidate(recentNotificationsProvider);
+                        // Add more if needed
+                      }
+                      if (!mounted) return;
+                      navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+                    },
                   ),
                 ),
+                const SizedBox(height: 24),
               ],
             );
           },

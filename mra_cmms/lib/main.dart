@@ -38,7 +38,10 @@ String titleCase(String input) {
   if (s.isEmpty) return input;
   return s
       .split(RegExp(r'\s+'))
-      .map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()))
+      .map(
+        (w) =>
+            w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()),
+      )
       .join(' ');
 }
 
@@ -53,7 +56,9 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
         child: pending.when(
           data: (items) {
             if (items.isEmpty) {
-              return const Center(child: Text('No work orders awaiting approval'));
+              return const Center(
+                child: Text('No work orders awaiting approval'),
+              );
             }
             return ListView.separated(
               itemCount: items.length,
@@ -65,10 +70,17 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                   return raw.isEmpty ? 'Untitled' : titleCase(raw);
                 })();
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 4,
+                  ),
                   child: ListTile(
                     leading: const Icon(Icons.inbox_outlined),
-                    title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Text(
+                      titleStr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -76,7 +88,8 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                           spacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
+                            if ((wo.status ?? '').isNotEmpty)
+                              StatusChip(wo.status!),
                             PriorityChip(wo.priority),
                             if ((wo.requestedBy ?? '').isNotEmpty)
                               _RequesterName(userId: wo.requestedBy!),
@@ -85,7 +98,11 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                         if ((wo.description ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(wo.description!, maxLines: 3, overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              wo.description!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         const SizedBox(height: 8),
                         Align(
@@ -97,16 +114,26 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                                 icon: const Icon(Icons.close),
                                 label: const Text('Reject'),
                                 onPressed: () async {
-                                  final ok = await _confirm(context, 'Reject this work order?');
+                                  final ok = await _confirm(
+                                    context,
+                                    'Reject this work order?',
+                                  );
                                   if (ok != true) return;
                                   final repo = WorkOrdersRepository();
-                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Active');
+                                  final (success, err) = await repo
+                                      .updateStatusForAdmin(wo.id, 'Active');
                                   if (!context.mounted) return;
                                   if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order rejected')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Work order rejected'),
+                                      ),
+                                    );
                                     ref.invalidate(pendingReviewsProvider);
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed: $err')),
+                                    );
                                   }
                                 },
                               ),
@@ -114,16 +141,26 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                                 icon: const Icon(Icons.check),
                                 label: const Text('Approve'),
                                 onPressed: () async {
-                                  final ok = await _confirm(context, 'Approve this work order as Completed?');
+                                  final ok = await _confirm(
+                                    context,
+                                    'Approve this work order as Completed?',
+                                  );
                                   if (ok != true) return;
                                   final repo = WorkOrdersRepository();
-                                  final (success, err) = await repo.updateStatusForAdmin(wo.id, 'Done');
+                                  final (success, err) = await repo
+                                      .updateStatusForAdmin(wo.id, 'Done');
                                   if (!context.mounted) return;
                                   if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order approved')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Work order approved'),
+                                      ),
+                                    );
                                     ref.invalidate(pendingReviewsProvider);
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed: $err')),
+                                    );
                                   }
                                 },
                               ),
@@ -133,7 +170,12 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
                       ],
                     ),
                     onTap: () async {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                        ),
+                      );
                       if (context.mounted) {
                         ref.invalidate(pendingReviewsProvider);
                       }
@@ -150,11 +192,14 @@ class PendingWorkOrdersApprovalPage extends ConsumerWidget {
     );
   }
 }
+
 class LeavesApprovalSection extends ConsumerWidget {
   const LeavesApprovalSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final titleStyleBold = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
+    final titleStyleBold = Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
     final pendingLeaves = ref.watch(pendingLeavesForApprovalProvider);
     return pendingLeaves.when(
       data: (items) => RepaintBoundary(
@@ -188,7 +233,10 @@ class LeavesApprovalSection extends ConsumerWidget {
           margin: EdgeInsets.zero,
           maxWidth: double.infinity,
           titleTextStyle: titleStyleBold,
-          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: LinearProgressIndicator(),
+          ),
         ),
       ),
       error: (e, st) => RepaintBoundary(
@@ -226,14 +274,24 @@ class PendingLeavesApprovalPage extends ConsumerWidget {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final lv = items[index];
-                final period = '${fmtShortDate(lv.startDate)} → ${fmtShortDate(lv.endDate)}';
-                final type = lv.typeKey.isNotEmpty ? titleCase(lv.typeKey) : 'Leave';
+                final period =
+                    '${fmtShortDate(lv.startDate)} → ${fmtShortDate(lv.endDate)}';
+                final type = lv.typeKey.isNotEmpty
+                    ? titleCase(lv.typeKey)
+                    : 'Leave';
                 final status = lv.status.isNotEmpty ? lv.status : 'pending';
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 4,
+                  ),
                   child: ListTile(
                     leading: const Icon(Icons.beach_access_outlined),
-                    title: Text('$type • $period', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Text(
+                      '$type • $period',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -247,7 +305,11 @@ class PendingLeavesApprovalPage extends ConsumerWidget {
                         if ((lv.reason ?? '').isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(lv.reason!, maxLines: 3, overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              lv.reason!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         const SizedBox(height: 8),
                         Align(
@@ -259,16 +321,31 @@ class PendingLeavesApprovalPage extends ConsumerWidget {
                                 icon: const Icon(Icons.close),
                                 label: const Text('Reject'),
                                 onPressed: () async {
-                                  final ok = await _confirm(context, 'Reject this leave request?');
+                                  final ok = await _confirm(
+                                    context,
+                                    'Reject this leave request?',
+                                  );
                                   if (ok != true) return;
                                   final repo = LeavesRepository();
-                                  final (success, err) = await repo.updateLeaveApproval(id: lv.id, approve: false);
+                                  final (success, err) = await repo
+                                      .updateLeaveApproval(
+                                        id: lv.id,
+                                        approve: false,
+                                      );
                                   if (!context.mounted) return;
                                   if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave rejected')));
-                                    ref.invalidate(pendingLeavesForApprovalProvider);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Leave rejected'),
+                                      ),
+                                    );
+                                    ref.invalidate(
+                                      pendingLeavesForApprovalProvider,
+                                    );
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed: $err')),
+                                    );
                                   }
                                 },
                               ),
@@ -276,16 +353,31 @@ class PendingLeavesApprovalPage extends ConsumerWidget {
                                 icon: const Icon(Icons.check),
                                 label: const Text('Approve'),
                                 onPressed: () async {
-                                  final ok = await _confirm(context, 'Approve this leave request?');
+                                  final ok = await _confirm(
+                                    context,
+                                    'Approve this leave request?',
+                                  );
                                   if (ok != true) return;
                                   final repo = LeavesRepository();
-                                  final (success, err) = await repo.updateLeaveApproval(id: lv.id, approve: true);
+                                  final (success, err) = await repo
+                                      .updateLeaveApproval(
+                                        id: lv.id,
+                                        approve: true,
+                                      );
                                   if (!context.mounted) return;
                                   if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave approved')));
-                                    ref.invalidate(pendingLeavesForApprovalProvider);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Leave approved'),
+                                      ),
+                                    );
+                                    ref.invalidate(
+                                      pendingLeavesForApprovalProvider,
+                                    );
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed: $err')),
+                                    );
                                   }
                                 },
                               ),
@@ -314,8 +406,14 @@ Future<bool?> _confirm(BuildContext context, String message) async {
       title: const Text('Confirm'),
       content: Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Yes'),
+        ),
       ],
     ),
   );
@@ -353,11 +451,17 @@ class _RequesterNameState extends State<_RequesterName> {
       future: _future,
       builder: (context, snapshot) {
         final text = snapshot.data ?? widget.userId;
-        return Text('User: $text', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall);
+        return Text(
+          'User: $text',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        );
       },
     );
   }
 }
+
 String fmtShortDate(DateTime d) {
   final yy = (d.year % 100).toString().padLeft(2, '0');
   final dd = d.day.toString().padLeft(2, '0');
@@ -397,8 +501,10 @@ class MyApp extends ConsumerWidget {
         '/register': (_) => const RegisterPage(),
         '/dashboard': (_) => const HomeShell(initialIndex: 0),
         '/orders': (_) => const HomeShell(initialIndex: 1),
-        '/orders/review': (_) => const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
-        '/orders/approval': (_) => const PendingWorkOrdersApprovalPage(),
+        '/orders/review': (_) =>
+            const HomeShell(initialIndex: 1, ordersFilter: 'Review'),
+        // '/orders/approval': (_) =>
+        //     const PendingWorkOrdersApprovalPage(), // Removed
         '/orders/new': (_) => const NewWorkOrderPage(),
         '/leaves': (_) => const HomeShell(initialIndex: 2),
         '/leaves/approval': (_) => const PendingLeavesApprovalPage(),
@@ -442,15 +548,18 @@ class LoginPage extends StatelessWidget {
           password: passwordController.text,
         );
         // Invalidate profile provider so dashboard loads correct user
-        ProviderScope.containerOf(context, listen: false).invalidate(myProfileProvider);
+        ProviderScope.containerOf(
+          context,
+          listen: false,
+        ).invalidate(myProfileProvider);
         if (context.mounted) {
           Navigator.pushReplacementNamed(context, '/dashboard');
         }
       } on AuthException catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.message)));
         }
       }
     }
@@ -471,14 +580,16 @@ class LoginPage extends StatelessWidget {
                     controller: emailController,
                     label: 'Email',
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => (v == null || v.isEmpty) ? 'Enter email' : null,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter email' : null,
                   ),
                   const SizedBox(height: 12),
                   AppTextField(
                     controller: passwordController,
                     label: 'Password',
                     obscureText: true,
-                    validator: (v) => (v == null || v.length < 6) ? 'Min 6 chars' : null,
+                    validator: (v) =>
+                        (v == null || v.length < 6) ? 'Min 6 chars' : null,
                   ),
                   const SizedBox(height: 20),
                   AppButton(label: 'Sign In', onPressed: login),
@@ -519,16 +630,20 @@ class RegisterPage extends StatelessWidget {
           // Optionally create a profile row via trigger or here
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Registered. Please verify if required, then sign in.')),
+              const SnackBar(
+                content: Text(
+                  'Registered. Please verify if required, then sign in.',
+                ),
+              ),
             );
             Navigator.pop(context);
           }
         }
       } on AuthException catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.message)));
         }
       }
     }
@@ -548,21 +663,24 @@ class RegisterPage extends StatelessWidget {
                   AppTextField(
                     controller: nameController,
                     label: 'Full name',
-                    validator: (v) => (v == null || v.isEmpty) ? 'Enter name' : null,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter name' : null,
                   ),
                   const SizedBox(height: 12),
                   AppTextField(
                     controller: emailController,
                     label: 'Email',
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => (v == null || v.isEmpty) ? 'Enter email' : null,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter email' : null,
                   ),
                   const SizedBox(height: 12),
                   AppTextField(
                     controller: passwordController,
                     label: 'Password',
                     obscureText: true,
-                    validator: (v) => (v == null || v.length < 6) ? 'Min 6 chars' : null,
+                    validator: (v) =>
+                        (v == null || v.length < 6) ? 'Min 6 chars' : null,
                   ),
                   const SizedBox(height: 20),
                   AppButton(label: 'Create account', onPressed: register),
@@ -593,7 +711,9 @@ class DashboardPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
+      bottomNavigationBar: showNav
+          ? const PrimaryNavBar(currentIndex: 0)
+          : null,
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -625,13 +745,16 @@ class DashboardPage extends ConsumerWidget {
                     }
                     return TodaysOrdersSection(now: now);
                   },
-                  loading: () => const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: LinearProgressIndicator(),
+                  ),
                   error: (e, st) => const SizedBox.shrink(),
                 ),
                 const SizedBox(height: 12),
                 // Middle section cleared (no chart, no recent updates)
                 const SizedBox.shrink(),
-              ]
+              ],
             ),
           ),
         ),
@@ -653,7 +776,12 @@ class DashboardHeader extends StatelessWidget {
     return RepaintBoundary(
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        padding: EdgeInsets.fromLTRB(16, w < 400 ? 24.0 : 28.0, 16, w < 400 ? 16.0 : 20.0),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          w < 400 ? 24.0 : 28.0,
+          16,
+          w < 400 ? 16.0 : 20.0,
+        ),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
@@ -668,24 +796,45 @@ class DashboardHeader extends StatelessWidget {
                 children: [
                   profile.when(
                     data: (p) {
-                      final name = (p?.fullName?.trim().isNotEmpty ?? false) ? p!.fullName!.trim().split(' ').first : 'there';
+                      final name = (p?.fullName?.trim().isNotEmpty ?? false)
+                          ? p!.fullName!.trim().split(' ').first
+                          : 'there';
                       final hour = now.hour;
-                      final greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                      final greeting = hour < 12
+                          ? 'Good morning'
+                          : hour < 17
+                          ? 'Good afternoon'
+                          : 'Good evening';
                       return Text(
                         '$greeting, $name',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
                               fontWeight: FontWeight.w700,
-                              fontSize: (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24) * (w >= 700 ? 1.1 : 1.0),
+                              fontSize:
+                                  (Theme.of(
+                                        context,
+                                      ).textTheme.headlineSmall?.fontSize ??
+                                      24) *
+                                  (w >= 700 ? 1.1 : 1.0),
                             ),
                       );
                     },
-                    loading: () => const SizedBox(height: 20, width: 140, child: LinearProgressIndicator()),
-                    error: (e, st) => Text('Welcome', style: Theme.of(context).textTheme.headlineSmall),
+                    loading: () => const SizedBox(
+                      height: 20,
+                      width: 140,
+                      child: LinearProgressIndicator(),
+                    ),
+                    error: (e, st) => Text(
+                      'Welcome',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -709,13 +858,33 @@ class DashboardHeader extends StatelessWidget {
                         ? CachedNetworkImageProvider(avatarUrl)
                         : null,
                     child: (avatarUrl == null || avatarUrl.isEmpty)
-                        ? const Icon(Icons.person_outline, size: 22, color: Colors.black87)
+                        ? const Icon(
+                            Icons.person_outline,
+                            size: 22,
+                            color: Colors.black87,
+                          )
                         : null,
                   ),
                 );
               },
-              loading: () => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
-              error: (e, st) => const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person_outline, size: 22, color: Colors.black87)),
+              loading: () => const CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white,
+                child: Icon(
+                  Icons.person_outline,
+                  size: 22,
+                  color: Colors.black87,
+                ),
+              ),
+              error: (e, st) => const CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white,
+                child: Icon(
+                  Icons.person_outline,
+                  size: 22,
+                  color: Colors.black87,
+                ),
+              ),
             ),
           ],
         ),
@@ -729,24 +898,55 @@ class QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final w = c.maxWidth;
-      final isCompact = w < 420;
-      if (isCompact) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        final isCompact = w < 420;
+        if (isCompact) {
+          return RepaintBoundary(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/orders/new'),
+                    icon: const Icon(Icons.add_task, size: 26),
+                    label: const Text('New Orders'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 22,
+                        horizontal: 24,
+                      ),
+                      textStyle: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return RepaintBoundary(
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          child: Row(
             children: [
-              SizedBox(
-                width: double.infinity,
+              Expanded(
                 child: FilledButton.icon(
                   onPressed: () => Navigator.pushNamed(context, '/orders/new'),
                   icon: const Icon(Icons.add_task, size: 26),
                   label: const Text('New Orders'),
                   style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
-                    textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 22,
+                      horizontal: 24,
+                    ),
+                    textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     backgroundColor: Theme.of(context).colorScheme.primary,
                   ),
@@ -755,27 +955,8 @@ class QuickActions extends StatelessWidget {
             ],
           ),
         );
-      }
-      return RepaintBoundary(
-        child: Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/orders/new'),
-                icon: const Icon(Icons.add_task, size: 26),
-                label: const Text('New Orders'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 24),
-                  textStyle: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    });
+      },
+    );
   }
 }
 
@@ -801,7 +982,9 @@ class AdminApprovalSection extends ConsumerWidget {
   const AdminApprovalSection({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final titleStyleBold = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
+    final titleStyleBold = Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800);
     final pending = ref.watch(pendingReviewsProvider);
     return pending.when(
       data: (items) => RepaintBoundary(
@@ -815,13 +998,13 @@ class AdminApprovalSection extends ConsumerWidget {
           maxWidth: double.infinity,
           titleTextStyle: titleStyleBold,
           count: items.length,
-          onSeeAll: () => Navigator.pushNamed(context, '/orders/approval'),
+          // onSeeAll: () => Navigator.pushNamed(context, '/orders/approval'),
           child: ListTile(
             leading: const Icon(Icons.inbox_outlined),
             title: Text('${items.length} work order(s) pending'),
             subtitle: const Text('Work Order Approval'),
             trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () => Navigator.pushNamed(context, '/orders/approval'),
+            // onTap: () => Navigator.pushNamed(context, '/orders/approval'),
           ),
         ),
       ),
@@ -835,7 +1018,10 @@ class AdminApprovalSection extends ConsumerWidget {
           margin: EdgeInsets.zero,
           maxWidth: double.infinity,
           titleTextStyle: titleStyleBold,
-          child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: LinearProgressIndicator(),
+          ),
         ),
       ),
       error: (e, st) => RepaintBoundary(
@@ -856,23 +1042,32 @@ class AdminApprovalSection extends ConsumerWidget {
 }
 
 // Processing moved out of build
-List<(WorkOrder, DateTime?)> computeTodayRelevant(List<WorkOrder> items, DateTime now) {
-  bool isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+List<(WorkOrder, DateTime?)> computeTodayRelevant(
+  List<WorkOrder> items,
+  DateTime now,
+) {
+  bool isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
   bool isToday(DateTime? d) {
     if (d == null) return false;
     final local = d.toLocal();
     return isSameDay(local, now);
   }
+
   DateTime? eff(WorkOrder wo) {
     final status = (wo.status ?? '').toLowerCase();
     final dueToday = isToday(wo.dueDate);
-    final completed = status == 'completed' || status == 'done' || status == 'closed';
+    final completed =
+        status == 'completed' || status == 'done' || status == 'closed';
     final nextToday = completed && isToday(wo.nextScheduledDate);
     if (dueToday) return wo.dueDate?.toLocal();
     if (nextToday) return wo.nextScheduledDate?.toLocal();
     return null;
   }
-  final withEff = <(WorkOrder, DateTime?)>[for (final wo in items) (wo, eff(wo))];
+
+  final withEff = <(WorkOrder, DateTime?)>[
+    for (final wo in items) (wo, eff(wo)),
+  ];
   final todayRelevant = withEff.where((e) => e.$2 != null).toList();
   todayRelevant.sort((a, b) => a.$2!.compareTo(b.$2!));
   return todayRelevant;
@@ -901,7 +1096,9 @@ class TodaysOrdersSection extends ConsumerWidget {
               w < 360 ? 8 : 12,
               w < 360 ? 8 : 12,
             ),
-            titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            titleTextStyle: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             count: todayRelevant.length,
             onSeeAll: () => Navigator.pushNamed(context, '/orders'),
             child: const ListTile(
@@ -923,46 +1120,62 @@ class TodaysOrdersSection extends ConsumerWidget {
             w < 360 ? 8 : 12,
             w < 360 ? 8 : 12,
           ),
-          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          titleTextStyle: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           count: todayRelevant.length,
           onSeeAll: () => Navigator.pushNamed(context, '/orders'),
           child: Column(
             children: [
               for (var i = 0; i < count; i++) ...[
                 if (i > 0) const Divider(height: 1),
-                Builder(builder: (context) {
-                  final wo = visible[i].$1;
-                  final titleStr = (() {
-                    final raw = (wo.title ?? 'Untitled').trim();
-                    final safe = raw.isEmpty ? 'Untitled' : raw;
-                    return titleCase(safe);
-                  })();
-                  return ListTile(
-                    leading: const Icon(Icons.work_outline),
-                    title: Text(titleStr, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                        PriorityChip(wo.priority),
-                      ],
-                    ),
-                    visualDensity: w < 360 ? const VisualDensity(vertical: -2) : VisualDensity.standard,
-                    trailing: FilledButton.icon(
-                      onPressed: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                        // Refresh dashboard providers to reflect any status changes
-                        ref.invalidate(todaysOrdersProvider);
-                        ref.invalidate(kpisProvider);
-                        ref.invalidate(recentNotificationsProvider);
-                      },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Start'),
-                    ),
-                  );
-                }),
+                Builder(
+                  builder: (context) {
+                    final wo = visible[i].$1;
+                    final titleStr = (() {
+                      final raw = (wo.title ?? 'Untitled').trim();
+                      final safe = raw.isEmpty ? 'Untitled' : raw;
+                      return titleCase(safe);
+                    })();
+                    return ListTile(
+                      leading: const Icon(Icons.work_outline),
+                      title: Text(
+                        titleStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if ((wo.status ?? '').isNotEmpty)
+                            StatusChip(wo.status!),
+                          PriorityChip(wo.priority),
+                        ],
+                      ),
+                      visualDensity: w < 360
+                          ? const VisualDensity(vertical: -2)
+                          : VisualDensity.standard,
+                      trailing: FilledButton.icon(
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                            ),
+                          );
+                          // Refresh dashboard providers to reflect any status changes
+                          ref.invalidate(todaysOrdersProvider);
+                          ref.invalidate(kpisProvider);
+                          ref.invalidate(recentNotificationsProvider);
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Start'),
+                      ),
+                    );
+                  },
+                ),
               ],
             ],
           ),
@@ -974,10 +1187,14 @@ class TodaysOrdersSection extends ConsumerWidget {
         backgroundColor: const Color(0xFF08234F),
         foregroundColor: Colors.white,
         titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+          fontSize:
+              (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
         ),
         onSeeAll: () => Navigator.pushNamed(context, '/orders'),
-        child: const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: LinearProgressIndicator(),
+        ),
       ),
       error: (e, st) => SectionCard(
         title: "Today's orders",
@@ -985,13 +1202,14 @@ class TodaysOrdersSection extends ConsumerWidget {
         backgroundColor: const Color(0xFF08234F),
         foregroundColor: Colors.white,
         titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
+          fontSize:
+              (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * 1.3,
         ),
         onSeeAll: () => Navigator.pushNamed(context, '/orders'),
         child: const ListTile(title: Text("Failed to load today's orders")),
       ),
     );
-  // ...existing code...
+    // ...existing code...
   }
 }
 
@@ -1021,8 +1239,8 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   void initState() {
-  _statusFilter = widget.initialFilter?.toLowerCase() ?? '';
-  _adminScope = true;
+    _statusFilter = widget.initialFilter?.toLowerCase() ?? '';
+    _adminScope = true;
     super.initState();
     _scrollController.addListener(() {
       if (_loadingMore || !_hasMore) return;
@@ -1053,7 +1271,11 @@ class _OrdersPageState extends State<OrdersPage> {
     try {
       if (_adminScope) {
         final status = (_statusFilter ?? 'review');
-        final page = await repo.getByStatusPage(status: status, cursor: null, limit: 20);
+        final page = await repo.getByStatusPage(
+          status: status,
+          cursor: null,
+          limit: 20,
+        );
         setState(() {
           _items = page.items;
           _nextCursor = page.nextCursor;
@@ -1081,10 +1303,16 @@ class _OrdersPageState extends State<OrdersPage> {
     try {
       if (_adminScope) {
         final status = (_statusFilter ?? 'review');
-        final page = await repo.getByStatusPage(status: status, cursor: _nextCursor, limit: 20);
+        final page = await repo.getByStatusPage(
+          status: status,
+          cursor: _nextCursor,
+          limit: 20,
+        );
         setState(() {
           final existingIds = _items.map((e) => e.id).toSet();
-          final newOnes = page.items.where((e) => !existingIds.contains(e.id)).toList();
+          final newOnes = page.items
+              .where((e) => !existingIds.contains(e.id))
+              .toList();
           _items = List.of(_items)..addAll(newOnes);
           _nextCursor = page.nextCursor;
           _hasMore = page.nextCursor != null;
@@ -1093,11 +1321,16 @@ class _OrdersPageState extends State<OrdersPage> {
         return;
       }
 
-      final page = await repo.getAssignedToMePage(cursor: _nextCursor, limit: 20);
+      final page = await repo.getAssignedToMePage(
+        cursor: _nextCursor,
+        limit: 20,
+      );
       setState(() {
         // Deduplicate by id when appending
         final existingIds = _items.map((e) => e.id).toSet();
-        final newOnes = page.items.where((e) => !existingIds.contains(e.id)).toList();
+        final newOnes = page.items
+            .where((e) => !existingIds.contains(e.id))
+            .toList();
         _items = List.of(_items)..addAll(newOnes);
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
@@ -1109,7 +1342,9 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void _createOrder() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create Order coming soon')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Create Order coming soon')));
   }
 
   void _openSearch() async {
@@ -1130,7 +1365,10 @@ class _OrdersPageState extends State<OrdersPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Search orders', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'Search orders',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: controller,
@@ -1152,7 +1390,8 @@ class _OrdersPageState extends State<OrdersPage> {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => Navigator.pop(context, controller.text.trim()),
+                    onPressed: () =>
+                        Navigator.pop(context, controller.text.trim()),
                     child: const Text('Apply'),
                   ),
                 ],
@@ -1190,7 +1429,8 @@ class _OrdersPageState extends State<OrdersPage> {
                         // Status chips (only All, Active, Review, Done)
                         ChoiceChip(
                           label: const Text('All'),
-                          selected: _statusFilter == null || _statusFilter == '',
+                          selected:
+                              _statusFilter == null || _statusFilter == '',
                           onSelected: (_) {
                             setState(() => _statusFilter = '');
                             _refresh();
@@ -1229,25 +1469,30 @@ class _OrdersPageState extends State<OrdersPage> {
                         ChoiceChip(
                           label: const Text('Today'),
                           selected: _datePreset == 'today',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'today' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'today' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('This week'),
                           selected: _datePreset == 'week',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'week' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'week' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('This month'),
                           selected: _datePreset == 'month',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'month' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'month' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Next month'),
                           selected: _datePreset == 'next_month',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'next_month' : null),
+                          onSelected: (v) => setState(
+                            () => _datePreset = v ? 'next_month' : null,
+                          ),
                         ),
                       ],
                     ),
@@ -1266,11 +1511,12 @@ class _OrdersPageState extends State<OrdersPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: Builder(builder: (context) {
-          if (_initialLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          List<WorkOrder> items = List.of(_items);
+        child: Builder(
+          builder: (context) {
+            if (_initialLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            List<WorkOrder> items = List.of(_items);
             // Filter by query
             if (_query.isNotEmpty) {
               final q = _query.toLowerCase();
@@ -1283,7 +1529,8 @@ class _OrdersPageState extends State<OrdersPage> {
             }
             // Filter by selected status chip
             if (_statusFilter != null && _statusFilter!.isNotEmpty) {
-              String norm(String? v) => (v ?? '').toLowerCase().replaceAll('_', ' ');
+              String norm(String? v) =>
+                  (v ?? '').toLowerCase().replaceAll('_', ' ');
               final target = norm(_statusFilter).trim();
               items = items.where((wo) {
                 final s = norm(wo.status).trim();
@@ -1306,19 +1553,27 @@ class _OrdersPageState extends State<OrdersPage> {
                   break;
                 case 'week':
                   final weekday = now.weekday; // Mon=1..Sun=7
-                  start = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+                  start = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                  ).subtract(Duration(days: weekday - 1));
                   end = start.add(const Duration(days: 7));
                   break;
                 case 'month':
                   start = DateTime(now.year, now.month, 1);
-                  end = (now.month == 12) ? DateTime(now.year + 1, 1, 1) : DateTime(now.year, now.month + 1, 1);
+                  end = (now.month == 12)
+                      ? DateTime(now.year + 1, 1, 1)
+                      : DateTime(now.year, now.month + 1, 1);
                   break;
                 case 'next_month':
                   final isDec = now.month == 12;
                   final y = isDec ? now.year + 1 : now.year;
                   final m = isDec ? 1 : now.month + 1;
                   start = DateTime(y, m, 1);
-                  end = (m == 12) ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
+                  end = (m == 12)
+                      ? DateTime(y + 1, 1, 1)
+                      : DateTime(y, m + 1, 1);
                   break;
                 default:
                   start = DateTime.fromMillisecondsSinceEpoch(0);
@@ -1346,17 +1601,24 @@ class _OrdersPageState extends State<OrdersPage> {
                   return 3;
               }
             }
+
             int cmp(WorkOrder a, WorkOrder b) {
               int res = 0;
               switch (_sortKey) {
                 case 'priority':
-                  res = priorityRank(a.priority).compareTo(priorityRank(b.priority));
+                  res = priorityRank(
+                    a.priority,
+                  ).compareTo(priorityRank(b.priority));
                   break;
                 case 'status':
-                  res = (a.status ?? '').toLowerCase().compareTo((b.status ?? '').toLowerCase());
+                  res = (a.status ?? '').toLowerCase().compareTo(
+                    (b.status ?? '').toLowerCase(),
+                  );
                   break;
                 case 'title':
-                  res = (a.title ?? '').toLowerCase().compareTo((b.title ?? '').toLowerCase());
+                  res = (a.title ?? '').toLowerCase().compareTo(
+                    (b.title ?? '').toLowerCase(),
+                  );
                   break;
                 case 'due':
                 default:
@@ -1374,6 +1636,7 @@ class _OrdersPageState extends State<OrdersPage> {
               }
               return _ascending ? res : -res;
             }
+
             items.sort(cmp);
             if (items.isEmpty) {
               return EmptyState(
@@ -1384,109 +1647,151 @@ class _OrdersPageState extends State<OrdersPage> {
                 onAction: _createOrder,
               );
             }
-            return LayoutBuilder(builder: (context, c) {
-              final w = c.maxWidth;
-              final compact = w < 380;
-              final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * (w >= 700 ? 1.15 : 1.0),
-                  );
-              return ListView.builder(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: items.length + ((_hasMore || _loadingMore) ? 1 : 0),
-                itemBuilder: (context, i) {
-                  if (i >= items.length) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(child: CircularProgressIndicator()),
+            return LayoutBuilder(
+              builder: (context, c) {
+                final w = c.maxWidth;
+                final compact = w < 380;
+                final titleStyle = Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize:
+                          (Theme.of(context).textTheme.titleMedium?.fontSize ??
+                              16) *
+                          (w >= 700 ? 1.15 : 1.0),
                     );
-                  }
-                  final wo = items[i];
-                  String fmt(DateTime d) {
-                    final yy = (d.year % 100).toString().padLeft(2, '0');
-                    final dd = d.day.toString().padLeft(2, '0');
-                    final mm = d.month.toString().padLeft(2, '0');
-                    return '$dd/$mm/$yy';
-                  }
-                  return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 6 : 8),
-                    child: Card(
-                      elevation: 0,
-                      color: Theme.of(context).colorScheme.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Theme.of(context).dividerColor),
+                return ListView.builder(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount:
+                      items.length + ((_hasMore || _loadingMore) ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (i >= items.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final wo = items[i];
+                    String fmt(DateTime d) {
+                      final yy = (d.year % 100).toString().padLeft(2, '0');
+                      final dd = d.day.toString().padLeft(2, '0');
+                      final mm = d.month.toString().padLeft(2, '0');
+                      return '$dd/$mm/$yy';
+                    }
+
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: compact ? 6 : 8,
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                          if (!mounted) return;
-                          _refresh();
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.all(compact ? 12 : 16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Icon(Icons.assignment_outlined, color: Theme.of(context).colorScheme.primary),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Card(
+                        elevation: 0,
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => WorkOrderDetailsPage(id: wo.id),
+                              ),
+                            );
+                            if (!mounted) return;
+                            _refresh();
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.all(compact ? 12 : 16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.assignment_outlined,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        (() {
+                                          final raw = (wo.title ?? 'Untitled')
+                                              .trim();
+                                          final safe = raw.isEmpty
+                                              ? 'Untitled'
+                                              : raw;
+                                          return titleCase(safe);
+                                        })(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: titleStyle,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 4,
+                                        children: [
+                                          if ((wo.status ?? '').isNotEmpty)
+                                            StatusChip(wo.status!),
+                                          PriorityChip(wo.priority),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(
-                                      (() {
-                                        final raw = (wo.title ?? 'Untitled').trim();
-                                        final safe = raw.isEmpty ? 'Untitled' : raw;
-                                        return titleCase(safe);
-                                      })(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: titleStyle,
+                                    const Text(
+                                      'Due',
+                                      style: TextStyle(fontSize: 12),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 4,
-                                      children: [
-                                        if ((wo.status ?? '').isNotEmpty) StatusChip(wo.status!),
-                                        PriorityChip(wo.priority),
-                                      ],
+                                    Text(
+                                      wo.dueDate == null
+                                          ? ''
+                                          : fmt(wo.dueDate!),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    FilledButton.tonalIcon(
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                WorkOrderDetailsPage(id: wo.id),
+                                          ),
+                                        );
+                                        if (!mounted) return;
+                                        _refresh();
+                                      },
+                                      icon: const Icon(
+                                        Icons.visibility_outlined,
+                                      ),
+                                      label: const Text('View'),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Text('Due', style: TextStyle(fontSize: 12)),
-                                  Text(wo.dueDate == null ? '' : fmt(wo.dueDate!)),
-                                  const SizedBox(height: 6),
-                                  FilledButton.tonalIcon(
-                                    onPressed: () async {
-                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => WorkOrderDetailsPage(id: wo.id)));
-                                      if (!mounted) return;
-                                      _refresh();
-                                    },
-                                    icon: const Icon(Icons.visibility_outlined),
-                                    label: const Text('View'),
-                                  ),
-                                ],
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              );
-            });
-          },),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'orders_fab',
@@ -1494,7 +1799,9 @@ class _OrdersPageState extends State<OrdersPage> {
         icon: const Icon(Icons.add),
         label: const Text('Order'),
       ),
-      bottomNavigationBar: widget.showNav ? const PrimaryNavBar(currentIndex: 1) : null,
+      bottomNavigationBar: widget.showNav
+          ? const PrimaryNavBar(currentIndex: 1)
+          : null,
     );
   }
 }
@@ -1565,14 +1872,16 @@ class _LeavesPageState extends State<LeavesPage> {
       if (!mounted) return;
       setState(() => _initialLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Loading leaves took too long. Please try again.')),
+        const SnackBar(
+          content: Text('Loading leaves took too long. Please try again.'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _initialLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load leaves: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load leaves: $e')));
     }
   }
 
@@ -1581,12 +1890,18 @@ class _LeavesPageState extends State<LeavesPage> {
     setState(() => _loadingMore = true);
     try {
       final future = (widget.userId != null && widget.userId!.isNotEmpty)
-          ? repo.getLeavesForUserPage(widget.userId!, cursor: _nextCursor, limit: 20)
+          ? repo.getLeavesForUserPage(
+              widget.userId!,
+              cursor: _nextCursor,
+              limit: 20,
+            )
           : repo.getMyLeavesPage(cursor: _nextCursor, limit: 20);
       final page = await future.timeout(const Duration(seconds: 12));
       setState(() {
         final existing = _items.map((e) => e.id).toSet();
-        final toAdd = page.items.where((e) => !existing.contains(e.id)).toList();
+        final toAdd = page.items
+            .where((e) => !existing.contains(e.id))
+            .toList();
         _items = List.of(_items)..addAll(toAdd);
         _nextCursor = page.nextCursor;
         _hasMore = page.nextCursor != null;
@@ -1601,14 +1916,16 @@ class _LeavesPageState extends State<LeavesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingMore = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load more leaves: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load more leaves: $e')));
     }
   }
 
   void _createLeave() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create Leave coming soon')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Create Leave coming soon')));
   }
 
   void _openSearch() async {
@@ -1629,7 +1946,10 @@ class _LeavesPageState extends State<LeavesPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Search leaves', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'Search leaves',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: controller,
@@ -1651,7 +1971,8 @@ class _LeavesPageState extends State<LeavesPage> {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => Navigator.pop(context, controller.text.trim()),
+                    onPressed: () =>
+                        Navigator.pop(context, controller.text.trim()),
                     child: const Text('Apply'),
                   ),
                 ],
@@ -1688,44 +2009,55 @@ class _LeavesPageState extends State<LeavesPage> {
                         ChoiceChip(
                           label: const Text('Pending'),
                           selected: _statusFilter == 'pending',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'pending' : null),
+                          onSelected: (v) => setState(
+                            () => _statusFilter = v ? 'pending' : null,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Approved'),
                           selected: _statusFilter == 'approved',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'approved' : null),
+                          onSelected: (v) => setState(
+                            () => _statusFilter = v ? 'approved' : null,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Rejected'),
                           selected: _statusFilter == 'rejected',
-                          onSelected: (v) => setState(() => _statusFilter = v ? 'rejected' : null),
+                          onSelected: (v) => setState(
+                            () => _statusFilter = v ? 'rejected' : null,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         // Date preset chips (removed 'All time')
                         ChoiceChip(
                           label: const Text('Today'),
                           selected: _datePreset == 'today',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'today' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'today' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('This week'),
                           selected: _datePreset == 'week',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'week' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'week' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('This month'),
                           selected: _datePreset == 'month',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'month' : null),
+                          onSelected: (v) =>
+                              setState(() => _datePreset = v ? 'month' : null),
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Next month'),
                           selected: _datePreset == 'next_month',
-                          onSelected: (v) => setState(() => _datePreset = v ? 'next_month' : null),
+                          onSelected: (v) => setState(
+                            () => _datePreset = v ? 'next_month' : null,
+                          ),
                         ),
                       ],
                     ),
@@ -1744,21 +2076,27 @@ class _LeavesPageState extends State<LeavesPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: Builder(builder: (context) {
-          if (_initialLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          // Filter client-side by query, selected date preset (overlap) and status
-          final items = List.of(_items).where((lv) {
+        child: Builder(
+          builder: (context) {
+            if (_initialLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            // Filter client-side by query, selected date preset (overlap) and status
+            final items = List.of(_items).where((lv) {
               final matchesQuery = () {
                 if (_query.isEmpty) return true;
                 final q = _query.toLowerCase();
                 final type = (lv.typeKey).toLowerCase();
                 final status = (lv.status).toLowerCase();
                 final reason = (lv.reason ?? '').toLowerCase();
-                return type.contains(q) || status.contains(q) || reason.contains(q);
+                return type.contains(q) ||
+                    status.contains(q) ||
+                    reason.contains(q);
               }();
-              final matchesStatus = _statusFilter == null || _statusFilter!.isEmpty || lv.status == _statusFilter;
+              final matchesStatus =
+                  _statusFilter == null ||
+                  _statusFilter!.isEmpty ||
+                  lv.status == _statusFilter;
               final matchesRange = () {
                 if (_datePreset == null) return true; // all time
                 DateTime now = DateTime.now();
@@ -1770,22 +2108,31 @@ class _LeavesPageState extends State<LeavesPage> {
                 } else if (_datePreset == 'week') {
                   // Start of week: Monday
                   final weekday = now.weekday; // Mon=1..Sun=7
-                  start = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+                  start = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                  ).subtract(Duration(days: weekday - 1));
                   end = start.add(const Duration(days: 7));
                 } else if (_datePreset == 'month') {
                   start = DateTime(now.year, now.month, 1);
-                  end = (now.month == 12) ? DateTime(now.year + 1, 1, 1) : DateTime(now.year, now.month + 1, 1);
+                  end = (now.month == 12)
+                      ? DateTime(now.year + 1, 1, 1)
+                      : DateTime(now.year, now.month + 1, 1);
                 } else if (_datePreset == 'next_month') {
                   final isDec = now.month == 12;
                   final y = isDec ? now.year + 1 : now.year;
                   final m = isDec ? 1 : now.month + 1;
                   start = DateTime(y, m, 1);
-                  end = (m == 12) ? DateTime(y + 1, 1, 1) : DateTime(y, m + 1, 1);
+                  end = (m == 12)
+                      ? DateTime(y + 1, 1, 1)
+                      : DateTime(y, m + 1, 1);
                 } else {
                   return true;
                 }
                 // Overlap if lv.endDate >= start AND lv.startDate < end
-                return !lv.endDate.isBefore(start) && lv.startDate.isBefore(end);
+                return !lv.endDate.isBefore(start) &&
+                    lv.startDate.isBefore(end);
               }();
               return matchesQuery && matchesStatus && matchesRange;
             }).toList();
@@ -1795,7 +2142,8 @@ class _LeavesPageState extends State<LeavesPage> {
               return EmptyState(
                 icon: Icons.beach_access_outlined,
                 title: 'No leaves',
-                message: 'No leave requests found. Pull to refresh or create one.',
+                message:
+                    'No leave requests found. Pull to refresh or create one.',
                 actionLabel: 'New leave',
                 onAction: _createLeave,
               );
@@ -1812,6 +2160,7 @@ class _LeavesPageState extends State<LeavesPage> {
                   return cs.tertiaryContainer;
               }
             }
+
             Color statusFg(String s, BuildContext c) {
               final cs = Theme.of(c).colorScheme;
               switch (s.toLowerCase()) {
@@ -1824,22 +2173,27 @@ class _LeavesPageState extends State<LeavesPage> {
                   return cs.onTertiaryContainer;
               }
             }
+
             String cap(String s) {
               final t = s.trim();
               if (t.isEmpty) return t;
               return t[0].toUpperCase() + t.substring(1).toLowerCase();
             }
+
             String fmt(DateTime d) {
               final yy = (d.year % 100).toString().padLeft(2, '0');
               final dd = d.day.toString().padLeft(2, '0');
               final mm = d.month.toString().padLeft(2, '0');
               return '$dd/$mm/$yy';
             }
+
             return LayoutBuilder(
               builder: (context, c) {
                 final w = c.maxWidth;
                 final pad = w < 380 ? 12.0 : 16.0;
-                final titleSize = (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) * (w >= 700 ? 1.05 : 1.0);
+                final titleSize =
+                    (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) *
+                    (w >= 700 ? 1.05 : 1.0);
                 return ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
                   controller: _scrollController,
@@ -1857,7 +2211,9 @@ class _LeavesPageState extends State<LeavesPage> {
                     final start = fmt(lv.startDate);
                     final end = fmt(lv.endDate);
                     final totalDays = (() {
-                      final d = lv.endDate.difference(lv.startDate).inDays + 1; // inclusive
+                      final d =
+                          lv.endDate.difference(lv.startDate).inDays +
+                          1; // inclusive
                       return d < 1 ? 1 : d;
                     })();
                     final bg = statusBg(lv.status, context);
@@ -1873,7 +2229,9 @@ class _LeavesPageState extends State<LeavesPage> {
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
                                 child: const Icon(Icons.beach_access_outlined),
                               ),
                               const SizedBox(width: 12),
@@ -1886,7 +2244,10 @@ class _LeavesPageState extends State<LeavesPage> {
                                         Expanded(
                                           child: Text(
                                             cap(lv.typeKey),
-                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: titleSize,
                                                 ),
@@ -1896,14 +2257,22 @@ class _LeavesPageState extends State<LeavesPage> {
                                         ),
                                         const SizedBox(width: 8),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: bg,
-                                            borderRadius: BorderRadius.circular(999),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
                                           ),
                                           child: Text(
                                             cap(lv.status),
-                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
                                                   color: fg,
                                                   fontWeight: FontWeight.w600,
                                                 ),
@@ -1914,8 +2283,13 @@ class _LeavesPageState extends State<LeavesPage> {
                                     const SizedBox(height: 6),
                                     Text(
                                       '$start → $end  ·  $totalDays ${totalDays == 1 ? 'day' : 'days'}',
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                     ),
                                   ],
@@ -1930,7 +2304,8 @@ class _LeavesPageState extends State<LeavesPage> {
                 );
               },
             );
-          },),
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'leaves_fab',
@@ -1938,7 +2313,9 @@ class _LeavesPageState extends State<LeavesPage> {
         icon: const Icon(Icons.add),
         label: const Text('Leave'),
       ),
-      bottomNavigationBar: widget.showNav ? const PrimaryNavBar(currentIndex: 2) : null,
+      bottomNavigationBar: widget.showNav
+          ? const PrimaryNavBar(currentIndex: 2)
+          : null,
     );
   }
 }
@@ -1950,8 +2327,11 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
-    String modeLabel(ThemeMode m) =>
-        m == ThemeMode.light ? 'Light' : m == ThemeMode.dark ? 'Dark' : 'System';
+    String modeLabel(ThemeMode m) => m == ThemeMode.light
+        ? 'Light'
+        : m == ThemeMode.dark
+        ? 'Dark'
+        : 'System';
     return Scaffold(
       appBar: AppBar(centerTitle: true, title: const Text('Settings')),
       body: ListView(
@@ -1959,7 +2339,10 @@ class SettingsPage extends ConsumerWidget {
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              'Appearance',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.color_lens_outlined),
@@ -1975,7 +2358,12 @@ class SettingsPage extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const ListTile(title: Text('Sort by', style: TextStyle(fontWeight: FontWeight.w600))),
+                        const ListTile(
+                          title: Text(
+                            'Sort by',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.system,
                           groupValue: mode,
@@ -2005,7 +2393,10 @@ class SettingsPage extends ConsumerWidget {
           ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text('Account', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              'Account',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.person_outline),
@@ -2016,7 +2407,10 @@ class SettingsPage extends ConsumerWidget {
           const Divider(height: 24),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text('Session', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              'Session',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -2033,7 +2427,10 @@ class SettingsPage extends ConsumerWidget {
               ]);
               // Invalidate dashboard-related providers
               if (context.mounted) {
-                final container = ProviderScope.containerOf(context, listen: false);
+                final container = ProviderScope.containerOf(
+                  context,
+                  listen: false,
+                );
                 container.invalidate(kpisProvider);
                 container.invalidate(todaysOrdersProvider);
                 container.invalidate(pendingReviewsProvider);
@@ -2042,14 +2439,18 @@ class SettingsPage extends ConsumerWidget {
                 container.invalidate(myProfileProvider);
                 container.invalidate(recentNotificationsProvider);
                 // Add more if needed
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
           ),
         ],
       ),
-      bottomNavigationBar: showNav ? const PrimaryNavBar(currentIndex: 0) : null,
-    );  
+      bottomNavigationBar: showNav
+          ? const PrimaryNavBar(currentIndex: 0)
+          : null,
+    );
   }
 }
 

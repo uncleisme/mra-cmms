@@ -46,8 +46,14 @@ class _ProfilePageState extends State<ProfilePage> {
             decoration: const InputDecoration(labelText: 'Full name'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Save'),
+            ),
           ],
         );
       },
@@ -56,21 +62,33 @@ class _ProfilePageState extends State<ProfilePage> {
       await repo.updateName(val);
       await _refresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name updated')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Name updated')));
       }
     }
   }
 
   Future<void> _changePhoto() async {
     final picker = ImagePicker();
-    final xfile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 85);
+    final xfile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      imageQuality: 85,
+    );
     if (xfile == null) return;
     final bytes = await xfile.readAsBytes();
     final type = mime.lookupMimeType(xfile.name) ?? 'image/jpeg';
-    await repo.uploadAvatar(bytes: bytes, filename: xfile.name, contentType: type);
+    await repo.uploadAvatar(
+      bytes: bytes,
+      filename: xfile.name,
+      contentType: type,
+    );
     await _refresh();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo updated')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Photo updated')));
     }
   }
 
@@ -97,8 +115,11 @@ class _ProfilePageState extends State<ProfilePage> {
             }
 
             final scheme = Theme.of(context).colorScheme;
-            final nameStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, color: Colors.white);
-            final emailStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70);
+            final nameStyle = Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w700, color: Colors.white);
+            final emailStyle = Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.white70);
 
             return CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -123,7 +144,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: Align(
                               alignment: Alignment.bottomLeft,
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  24,
+                                ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -132,11 +158,21 @@ class _ProfilePageState extends State<ProfilePage> {
                                         CircleAvatar(
                                           radius: 44,
                                           backgroundColor: Colors.white24,
-                                          backgroundImage: (p.avatarUrl != null && p.avatarUrl!.isNotEmpty)
-                                              ? CachedNetworkImageProvider(p.avatarUrl!)
+                                          backgroundImage:
+                                              (p.avatarUrl != null &&
+                                                  p.avatarUrl!.isNotEmpty)
+                                              ? CachedNetworkImageProvider(
+                                                  p.avatarUrl!,
+                                                )
                                               : null,
-                                          child: (p.avatarUrl == null || p.avatarUrl!.isEmpty)
-                                              ? const Icon(Icons.person, size: 44, color: Colors.white)
+                                          child:
+                                              (p.avatarUrl == null ||
+                                                  p.avatarUrl!.isEmpty)
+                                              ? const Icon(
+                                                  Icons.person,
+                                                  size: 44,
+                                                  color: Colors.white,
+                                                )
                                               : null,
                                         ),
                                         Positioned(
@@ -146,11 +182,16 @@ class _ProfilePageState extends State<ProfilePage> {
                                             color: scheme.secondary,
                                             shape: const CircleBorder(),
                                             child: InkWell(
-                                              customBorder: const CircleBorder(),
+                                              customBorder:
+                                                  const CircleBorder(),
                                               onTap: _changePhoto,
                                               child: const Padding(
                                                 padding: EdgeInsets.all(8),
-                                                child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                                                child: Icon(
+                                                  Icons.camera_alt,
+                                                  size: 18,
+                                                  color: Colors.white,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -161,15 +202,27 @@ class _ProfilePageState extends State<ProfilePage> {
                                     Expanded(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
-                                              Expanded(child: Text(p.fullName ?? '-', style: nameStyle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                              Expanded(
+                                                child: Text(
+                                                  p.fullName ?? '-',
+                                                  style: nameStyle,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                           const SizedBox(height: 4),
-                                          Text(p.email ?? '-', style: emailStyle),
+                                          Text(
+                                            p.email ?? '-',
+                                            style: emailStyle,
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -195,7 +248,13 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Account', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                  Text(
+                                    'Account',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
                                   const SizedBox(height: 8),
                                   ListTile(
                                     leading: const Icon(Icons.email_outlined),
@@ -209,7 +268,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                   if (p.createdAt != null)
                                     ListTile(
-                                      leading: const Icon(Icons.calendar_today_outlined),
+                                      leading: const Icon(
+                                        Icons.calendar_today_outlined,
+                                      ),
                                       title: const Text('Joined'),
                                       subtitle: Text(fmt(p.createdAt!)),
                                     ),
@@ -224,36 +285,55 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ListTile(
                                   leading: const Icon(Icons.edit_outlined),
                                   title: const Text('Edit name'),
-                                  subtitle: const Text('Update your display name'),
+                                  subtitle: const Text(
+                                    'Update your display name',
+                                  ),
                                   onTap: () => _editName(p),
                                 ),
                                 const Divider(height: 1),
                                 ListTile(
                                   leading: const Icon(Icons.image_outlined),
                                   title: const Text('Change photo'),
-                                  subtitle: const Text('Upload a new profile picture'),
+                                  subtitle: const Text(
+                                    'Upload a new profile picture',
+                                  ),
                                   onTap: _changePhoto,
                                 ),
                                 const Divider(height: 1),
                                 ListTile(
                                   leading: const Icon(Icons.logout),
                                   title: const Text('Sign out'),
-                                  subtitle: const Text('Sign out of your account'),
+                                  subtitle: const Text(
+                                    'Sign out of your account',
+                                  ),
                                   onTap: () async {
                                     final navigator = Navigator.of(context);
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Sign out?'),
-                                        content: const Text('Are you sure you want to sign out?'),
-                                        actions: [
-                                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
-                                        ],
-                                      ),
-                                    ) ?? false;
+                                    final confirm =
+                                        await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('Sign out?'),
+                                            content: const Text(
+                                              'Are you sure you want to sign out?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, false),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, true),
+                                                child: const Text('Sign out'),
+                                              ),
+                                            ],
+                                          ),
+                                        ) ??
+                                        false;
                                     if (!confirm) return;
-                                    await Supabase.instance.client.auth.signOut();
+                                    await Supabase.instance.client.auth
+                                        .signOut();
                                     // Clear all user-related Hive boxes
                                     await Future.wait([
                                       Hive.box<Map>('profiles_box').clear(),
@@ -264,18 +344,35 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ]);
                                     // Invalidate dashboard-related providers
                                     if (mounted) {
-                                      final container = ProviderScope.containerOf(context, listen: false);
+                                      final container =
+                                          ProviderScope.containerOf(
+                                            context,
+                                            listen: false,
+                                          );
                                       container.invalidate(kpisProvider);
-                                      container.invalidate(todaysOrdersProvider);
-                                      container.invalidate(pendingReviewsProvider);
-                                      container.invalidate(todaysLeavesProvider);
-                                      container.invalidate(pendingLeavesForApprovalProvider);
+                                      container.invalidate(
+                                        todaysOrdersProvider,
+                                      );
+                                      container.invalidate(
+                                        pendingReviewsProvider,
+                                      );
+                                      container.invalidate(
+                                        todaysLeavesProvider,
+                                      );
+                                      container.invalidate(
+                                        pendingLeavesForApprovalProvider,
+                                      );
                                       container.invalidate(myProfileProvider);
-                                      container.invalidate(recentNotificationsProvider);
+                                      container.invalidate(
+                                        recentNotificationsProvider,
+                                      );
                                       // Add more if needed
                                     }
                                     if (!mounted) return;
-                                    navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+                                    navigator.pushNamedAndRemoveUntil(
+                                      '/login',
+                                      (_) => false,
+                                    );
                                   },
                                 ),
                               ],

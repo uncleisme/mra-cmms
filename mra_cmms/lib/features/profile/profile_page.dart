@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../dashboard/dashboard_providers.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart' as mime;
@@ -239,19 +242,38 @@ class _ProfilePageState extends State<ProfilePage> {
                                   onTap: () async {
                                     final navigator = Navigator.of(context);
                                     final confirm = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            title: const Text('Sign out?'),
-                                            content: const Text('Are you sure you want to sign out?'),
-                                            actions: [
-                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
-                                            ],
-                                          ),
-                                        ) ??
-                                        false;
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Sign out?'),
+                                        content: const Text('Are you sure you want to sign out?'),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+                                        ],
+                                      ),
+                                    ) ?? false;
                                     if (!confirm) return;
                                     await Supabase.instance.client.auth.signOut();
+                                    // Clear all user-related Hive boxes
+                                    await Future.wait([
+                                      Hive.box<Map>('profiles_box').clear(),
+                                      Hive.box<Map>('assets_box').clear(),
+                                      Hive.box<Map>('leaves_box').clear(),
+                                      Hive.box<Map>('work_orders_box').clear(),
+                                      Hive.box<Map>('locations_box').clear(),
+                                    ]);
+                                    // Invalidate dashboard-related providers
+                                    if (mounted) {
+                                      final container = ProviderScope.containerOf(context, listen: false);
+                                      container.invalidate(kpisProvider);
+                                      container.invalidate(todaysOrdersProvider);
+                                      container.invalidate(pendingReviewsProvider);
+                                      container.invalidate(todaysLeavesProvider);
+                                      container.invalidate(pendingLeavesForApprovalProvider);
+                                      container.invalidate(myProfileProvider);
+                                      container.invalidate(recentNotificationsProvider);
+                                      // Add more if needed
+                                    }
                                     if (!mounted) return;
                                     navigator.pushNamedAndRemoveUntil('/login', (_) => false);
                                   },

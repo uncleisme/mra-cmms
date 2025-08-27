@@ -441,6 +441,8 @@ class LoginPage extends StatelessWidget {
           email: emailController.text.trim(),
           password: passwordController.text,
         );
+        // Invalidate profile provider so dashboard loads correct user
+        ProviderScope.containerOf(context, listen: false).invalidate(myProfileProvider);
         if (context.mounted) {
           Navigator.pushReplacementNamed(context, '/dashboard');
         }
@@ -2021,7 +2023,25 @@ class SettingsPage extends ConsumerWidget {
             title: const Text('Sign out'),
             onTap: () async {
               await Supabase.instance.client.auth.signOut();
+              // Clear all user-related Hive boxes
+              await Future.wait([
+                Hive.box<Map>('profiles_box').clear(),
+                Hive.box<Map>('assets_box').clear(),
+                Hive.box<Map>('leaves_box').clear(),
+                Hive.box<Map>('work_orders_box').clear(),
+                Hive.box<Map>('locations_box').clear(),
+              ]);
+              // Invalidate dashboard-related providers
               if (context.mounted) {
+                final container = ProviderScope.containerOf(context, listen: false);
+                container.invalidate(kpisProvider);
+                container.invalidate(todaysOrdersProvider);
+                container.invalidate(pendingReviewsProvider);
+                container.invalidate(todaysLeavesProvider);
+                container.invalidate(pendingLeavesForApprovalProvider);
+                container.invalidate(myProfileProvider);
+                container.invalidate(recentNotificationsProvider);
+                // Add more if needed
                 Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
               }
             },

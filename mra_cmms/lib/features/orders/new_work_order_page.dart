@@ -52,7 +52,7 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
   }
 
   Future<void> _loadLookups() async {
-    print('Starting _loadLookups...');
+    // print('Starting _loadLookups...');
     if (mounted) {
       setState(() {
         _loadingLookups = true;
@@ -61,39 +61,45 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
 
     try {
       final client = Supabase.instance.client;
-      
-      print('Fetching assets...');
+
+      // print('Fetching assets...');
       final assetsResponse = await client
           .from('assets')
           .select('id, asset_name, location_id')
           .order('asset_name')
           .limit(500);
-      
-      print('Raw assets response: $assetsResponse');
-      
-      final assetsData = (assetsResponse as List?)?.cast<Map<String, dynamic>>() ?? [];
-      print('Found ${assetsData.length} assets');
-      
+
+      // print('Raw assets response: $assetsResponse');
+
+      final assetsData =
+          (assetsResponse as List?)?.cast<Map<String, dynamic>>() ?? [];
+      // print('Found ${assetsData.length} assets');
+
       if (assetsData.isNotEmpty) {
-        print('First asset data: ${assetsData.first}');
+        // print('First asset data: ${assetsData.first}');
       }
-      
+
       // Fetch other data in parallel
-      print('Fetching locations...');
-      final locationsFuture = client.from('locations').select('id, name').limit(500);
-      
-      print('Fetching technicians...');
-      final techsFuture = client.from('profiles')
+      // print('Fetching locations...');
+      final locationsFuture = client
+          .from('locations')
+          .select('id, name')
+          .limit(500);
+
+      // print('Fetching technicians...');
+      final techsFuture = client
+          .from('profiles')
           .select('id, full_name, type')
           .eq('type', 'technician');
-          
-      print('Fetching service providers...');
-      final providersFuture = client.from('contacts')
+
+      // print('Fetching service providers...');
+      final providersFuture = client
+          .from('contacts')
           .select('id, name')
           .eq('type', 'Service Provider')
           .limit(500);
 
-      print('Waiting for all data to load...');
+      // print('Waiting for all data to load...');
       final results = await Future.wait([
         locationsFuture,
         techsFuture,
@@ -101,39 +107,43 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ]);
 
       if (!mounted) {
-        print('Widget not mounted, aborting...');
+        // print('Widget not mounted, aborting...');
         return;
       }
 
-      print('Processing data...');
-      final newAssets = assetsData.map((e) => {
-        'id': e['id']?.toString() ?? '',
-        'asset_name': e['asset_name']?.toString() ?? 'Unnamed Asset',
-        'location_id': e['location_id']?.toString(),
-      }).toList();
-      
-      print('Mapped ${newAssets.length} assets');
+      // print('Processing data...');
+      final newAssets = assetsData
+          .map(
+            (e) => {
+              'id': e['id']?.toString() ?? '',
+              'asset_name': e['asset_name']?.toString() ?? 'Unnamed Asset',
+              'location_id': e['location_id']?.toString(),
+            },
+          )
+          .toList();
+
+      // print('Mapped ${newAssets.length} assets');
       if (newAssets.isNotEmpty) {
-        print('First mapped asset: ${newAssets.first}');
+        // print('First mapped asset: ${newAssets.first}');
       }
-      
+
       final newLocations = (results[0] as List).map((e) {
         final m = Map<String, dynamic>.from(e as Map);
         return {'id': m['id'].toString(), 'label': m['name'].toString()};
       }).toList();
-      print('Mapped ${newLocations.length} locations');
+      // print('Mapped ${newLocations.length} locations');
 
       final newTechnicians = (results[1] as List).map((e) {
         final m = Map<String, dynamic>.from(e as Map);
         return {'id': m['id'].toString(), 'label': m['full_name'].toString()};
       }).toList();
-      print('Mapped ${newTechnicians.length} technicians');
+      // print('Mapped ${newTechnicians.length} technicians');
 
       final newServiceProviders = (results[2] as List).map((e) {
         final m = Map<String, dynamic>.from(e as Map);
         return {'id': m['id'].toString(), 'label': m['name'].toString()};
       }).toList();
-      print('Mapped ${newServiceProviders.length} service providers');
+      // print('Mapped ${newServiceProviders.length} service providers');
 
       if (mounted) {
         setState(() {
@@ -143,10 +153,10 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
           _serviceProviders = newServiceProviders;
           _loadingLookups = false;
         });
-        print('State updated with new data');
+        // print('State updated with new data');
       }
     } catch (e) {
-      print('Error in _loadLookups: $e');
+      // print('Error in _loadLookups: $e');
       if (mounted) {
         setState(() => _loadingLookups = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -192,7 +202,10 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
 
   String _getLocationNameById(String? locationId) {
     if (locationId == null) return 'N/A';
-    final location = _locations.firstWhere((l) => l['id'] == locationId, orElse: () => {'label': 'Unknown Location'});
+    final location = _locations.firstWhere(
+      (l) => l['id'] == locationId,
+      orElse: () => {'label': 'Unknown Location'},
+    );
     return location['label']!;
   }
 
@@ -215,10 +228,14 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work order created')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Work order created')));
       Navigator.pop(context, true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $err')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $err')));
     }
   }
 
@@ -228,10 +245,13 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Step 1: Choose Job Type', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Step 1: Choose Job Type',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _workType,
+            initialValue: _workType,
             decoration: const InputDecoration(labelText: 'Work type *'),
             items: const [
               DropdownMenuItem(value: 'Preventive', child: Text('Preventive')),
@@ -250,19 +270,31 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Step 2: Title and Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              'Step 2: Title and Description',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _titleCtrl,
-              decoration: const InputDecoration(labelText: 'Title *', hintText: 'Short summary'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
+              decoration: const InputDecoration(
+                labelText: 'Title *',
+                hintText: 'Short summary',
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Title is required' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _descriptionCtrl,
-              decoration: const InputDecoration(labelText: 'Description *', hintText: 'Describe the issue/work'),
+              decoration: const InputDecoration(
+                labelText: 'Description *',
+                hintText: 'Describe the issue/work',
+              ),
               maxLines: 4,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Description is required'
+                  : null,
             ),
           ],
         ),
@@ -272,59 +304,79 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Step 3: Asset and Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Step 3: Asset and Location',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           _loadingLookups
               ? const Center(child: CircularProgressIndicator())
               : _assets.isEmpty
-                  ? const Text('No assets available')
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Select Asset', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedAssetId,
-                              isExpanded: true,
-                              hint: const Text('Select an asset'),
-                              items: _assets.map<DropdownMenuItem<String>>((asset) {
-                                final assetName = asset['asset_name']?.toString() ?? 'Unnamed Asset';
-                                final assetId = asset['id']?.toString();
-                                return DropdownMenuItem<String>(
-                                  value: assetId,
-                                  child: Text(assetName, overflow: TextOverflow.ellipsis),
-                                );
-                              }).toList(),
-                              onChanged: (String? value) {
-                                if (value == null) return;
-                                setState(() {
-                                  _selectedAssetId = value;
-                                  final selectedAsset = _assets.firstWhere(
-                                    (a) => a['id']?.toString() == value,
-                                    orElse: () => <String, String?>{},
-                                  );
-                                  if (selectedAsset.isNotEmpty) {
-                                    _selectedLocationId = selectedAsset['location_id']?.toString();
-                                  } else {
-                                    _selectedLocationId = null;
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
+              ? const Text('No assets available')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select Asset',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedAssetId,
+                          isExpanded: true,
+                          hint: const Text('Select an asset'),
+                          items: _assets.map<DropdownMenuItem<String>>((asset) {
+                            final assetName =
+                                asset['asset_name']?.toString() ??
+                                'Unnamed Asset';
+                            final assetId = asset['id']?.toString();
+                            return DropdownMenuItem<String>(
+                              value: assetId,
+                              child: Text(
+                                assetName,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (String? value) {
+                            if (value == null) return;
+                            setState(() {
+                              _selectedAssetId = value;
+                              final selectedAsset = _assets.firstWhere(
+                                (a) => a['id']?.toString() == value,
+                                orElse: () => <String, String?>{},
+                              );
+                              if (selectedAsset.isNotEmpty) {
+                                _selectedLocationId =
+                                    selectedAsset['location_id']?.toString();
+                              } else {
+                                _selectedLocationId = null;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
           const SizedBox(height: 12),
           TextFormField(
-            key: ValueKey(_selectedLocationId), // Ensures field rebuilds when ID changes
+            key: ValueKey(
+              _selectedLocationId,
+            ), // Ensures field rebuilds when ID changes
             initialValue: _getLocationNameById(_selectedLocationId),
             readOnly: true,
             decoration: const InputDecoration(
@@ -340,7 +392,10 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Step 4: Due Date', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Step 4: Due Date',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           InkWell(
             onTap: () async {
@@ -354,8 +409,14 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
               if (picked != null) setState(() => _dueDate = picked);
             },
             child: InputDecorator(
-              decoration: const InputDecoration(labelText: 'Due date (optional)'),
-              child: Text(_dueDate == null ? 'Not set' : _dueDate!.toString().split(' ').first),
+              decoration: const InputDecoration(
+                labelText: 'Due date (optional)',
+              ),
+              child: Text(
+                _dueDate == null
+                    ? 'Not set'
+                    : _dueDate!.toString().split(' ').first,
+              ),
             ),
           ),
         ],
@@ -365,19 +426,27 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Step 5: Assignment and Priority', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Step 5: Assignment and Priority',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _selectedAssigneeId,
-            decoration: const InputDecoration(labelText: 'Assign to technician (optional)'),
+            initialValue: _selectedAssigneeId,
+            decoration: const InputDecoration(
+              labelText: 'Assign to technician (optional)',
+            ),
             items: _technicians.map((tech) {
-              return DropdownMenuItem(value: tech['id'], child: Text(tech['label']!));
+              return DropdownMenuItem(
+                value: tech['id'],
+                child: Text(tech['label']!),
+              );
             }).toList(),
             onChanged: (v) => setState(() => _selectedAssigneeId = v),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _priority,
+            initialValue: _priority,
             decoration: const InputDecoration(labelText: 'Priority *'),
             items: const [
               DropdownMenuItem(value: 'Low', child: Text('Low')),
@@ -393,13 +462,21 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Step 6: Service Provider', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Step 6: Service Provider',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _selectedServiceProviderId,
-            decoration: const InputDecoration(labelText: 'Service Provider (optional)'),
+            initialValue: _selectedServiceProviderId,
+            decoration: const InputDecoration(
+              labelText: 'Service Provider (optional)',
+            ),
             items: _serviceProviders.map((sp) {
-              return DropdownMenuItem(value: sp['id'], child: Text(sp['label']!));
+              return DropdownMenuItem(
+                value: sp['id'],
+                child: Text(sp['label']!),
+              );
             }).toList(),
             onChanged: (v) => setState(() => _selectedServiceProviderId = v),
           ),
@@ -412,16 +489,15 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final steps = _buildSteps(context);
-    final isLastStep = _currentStep == steps.length - 1 || (_currentStep == 4 && _workType != 'Job');
+    final isLastStep =
+        _currentStep == steps.length - 1 ||
+        (_currentStep == 4 && _workType != 'Job');
 
     return Scaffold(
       appBar: AppBar(title: Text('New Work Order (Step ${_currentStep + 1})')),
       body: _loadingLookups
           ? const Center(child: CircularProgressIndicator())
-          : IndexedStack(
-              index: _currentStep,
-              children: steps,
-            ),
+          : IndexedStack(index: _currentStep, children: steps),
       bottomNavigationBar: BottomAppBar(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -438,9 +514,18 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
             FilledButton.icon(
               onPressed: _submitting ? null : _nextStep,
               icon: _submitting
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : Icon(isLastStep ? Icons.check : Icons.arrow_forward),
-              label: Text(_submitting ? 'Creating...' : (isLastStep ? 'Submit' : 'Next')),
+              label: Text(
+                _submitting ? 'Creating...' : (isLastStep ? 'Submit' : 'Next'),
+              ),
               style: FilledButton.styleFrom(
                 backgroundColor: cs.primary,
                 foregroundColor: cs.onPrimary,

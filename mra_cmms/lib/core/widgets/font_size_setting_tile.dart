@@ -1,6 +1,9 @@
+// Removed unused helper import
+// Removed: import 'package:group_button/group_button_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../main.dart' show AppFontSize, fontSizeProvider;
+import 'package:group_button/group_button.dart';
 
 String fontSizeLabel(AppFontSize option) {
   switch (option) {
@@ -27,6 +30,9 @@ class FontSizeSettingTile extends ConsumerWidget {
           showDragHandle: true,
           builder: (context) {
             AppFontSize tempValue = fontSize;
+            final controller = GroupButtonController(
+              selectedIndex: AppFontSize.values.indexOf(tempValue),
+            );
             return StatefulBuilder(
               builder: (context, setState) {
                 return SafeArea(
@@ -39,23 +45,20 @@ class FontSizeSettingTile extends ConsumerWidget {
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      RadioListTile<AppFontSize>(
-                        value: AppFontSize.small,
-                        groupValue: tempValue,
-                        title: const Text('Small'),
-                        onChanged: (v) => setState(() => tempValue = v!),
-                      ),
-                      RadioListTile<AppFontSize>(
-                        value: AppFontSize.medium,
-                        groupValue: tempValue,
-                        title: const Text('Medium'),
-                        onChanged: (v) => setState(() => tempValue = v!),
-                      ),
-                      RadioListTile<AppFontSize>(
-                        value: AppFontSize.large,
-                        groupValue: tempValue,
-                        title: const Text('Large'),
-                        onChanged: (v) => setState(() => tempValue = v!),
+                      GroupButton<AppFontSize>(
+                        isRadio: true,
+                        buttons: AppFontSize.values,
+                        controller: controller,
+                        onSelected: (value, index, isSelected) {
+                          setState(() => tempValue = value);
+                        },
+                        buttonTextBuilder: (value, context, selected) =>
+                            fontSizeLabel(value as AppFontSize),
+                        options: const GroupButtonOptions(
+                          selectedColor: Colors.blue,
+                          unselectedColor: Colors.white,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),

@@ -1,3 +1,4 @@
+import 'package:group_button/group_button.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 // import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'core/theme/theme.dart';
 import 'core/theme/util.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/theme/typography.dart';
+import 'core/utils/string_utils.dart';
 import 'core/widgets/app_text_field.dart';
 import 'core/widgets/app_button.dart';
 import 'core/widgets/status_chip.dart';
@@ -52,186 +54,10 @@ double getFontScale(AppFontSize size) {
   }
 }
 
-// Shared lightweight helpers to reduce allocations in build methods
-String titleCase(String input) {
-  final s = input.trim();
-  if (s.isEmpty) return input;
-  return s
-      .split(RegExp(r'\s+'))
-      .map(
-        (w) =>
-            w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase()),
-      )
-      .join(' ');
-}
+/// Reusable action buttons for work order approval/rejection
+// _WorkOrderActionButtons removed as it is no longer used
 
-class PendingWorkOrdersApprovalPage extends ConsumerWidget {
-  const PendingWorkOrdersApprovalPage({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pending = ref.watch(pendingReviewsProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pending Work Orders Approval')),
-      body: SafeArea(
-        child: pending.when(
-          data: (items) {
-            if (items.isEmpty) {
-              return const Center(
-                child: Text('No work orders awaiting approval'),
-              );
-            }
-            return ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final wo = items[index];
-                final titleStr = (() {
-                  final raw = (wo.title ?? 'Untitled').trim();
-                  return raw.isEmpty ? 'Untitled' : titleCase(raw);
-                })();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 4,
-                  ),
-                  child: ListTile(
-                    leading: const Icon(Icons.inbox_outlined),
-                    title: Text(
-                      titleStr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            if ((wo.status ?? '').isNotEmpty)
-                              StatusChip(wo.status!),
-                            PriorityChip(wo.priority),
-                            if ((wo.requestedBy ?? '').isNotEmpty)
-                              _RequesterName(userId: wo.requestedBy!),
-                          ],
-                        ),
-                        if ((wo.description ?? '').isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(
-                              wo.description!,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Wrap(
-                            spacing: 8,
-                            children: [
-                              OutlinedButton.icon(
-                                icon: const Icon(Icons.close),
-                                label: const Text('Reject'),
-                                onPressed: () async {
-                                  final ok = await _confirm(
-                                    context,
-                                    'Reject this work order?',
-                                  );
-                                  if (ok != true) return;
-                                  final repo = WorkOrdersRepository();
-                                  final (success, err) = await repo
-                                      .updateStatusForAdmin(wo.id, 'Active');
-                                  if (!context.mounted) return;
-                                  if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Work order rejected'),
-                                      ),
-                                    );
-                                    ref.invalidate(pendingReviewsProvider);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Failed: $err')),
-                                    );
-                                  }
-                                },
-                              ),
-                              FilledButton.icon(
-                                icon: const Icon(Icons.check),
-                                label: const Text('Approve'),
-                                onPressed: () async {
-                                  final ok = await _confirm(
-                                    context,
-                                    'Approve this work order as Completed?',
-                                  );
-                                  if (ok != true) return;
-                                  final repo = WorkOrdersRepository();
-                                  final (success, err) = await repo
-                                      .updateStatusForAdmin(wo.id, 'Done');
-                                  if (!context.mounted) return;
-                                  if (success) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Work order approved'),
-                                      ),
-                                    );
-                                    ref.invalidate(pendingReviewsProvider);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Failed: $err')),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => WorkOrderDetailsPage(id: wo.id),
-                        ),
-                      );
-                      if (context.mounted) {
-                        ref.invalidate(pendingReviewsProvider);
-                      }
-                    },
-                  ),
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: LinearProgressIndicator()),
-          error: (e, st) => Center(child: Text('Failed to load: $e')),
-        ),
-      ),
-    );
-  }
-}
-
-Future<bool?> _confirm(BuildContext context, String message) async {
-  return showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Confirm'),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Yes'),
-        ),
-      ],
-    ),
-  );
-}
+// _confirm removed as it is no longer used
 
 class _RequesterName extends StatefulWidget {
   final String userId;
@@ -813,13 +639,13 @@ class AdminApprovalSection extends ConsumerWidget {
           maxWidth: double.infinity,
           titleTextStyle: titleStyleBold,
           count: items.length,
-          // onSeeAll: () => Navigator.pushNamed(context, '/orders/approval'),
+          // onSeeAll: removed WorkOrdersReviewPage
           child: ListTile(
             leading: const Icon(Icons.inbox_outlined),
             title: Text('${items.length} work order(s) pending'),
             subtitle: const Text('Work Order Approval'),
             trailing: const Icon(Icons.arrow_forward_ios),
-            // onTap: () => Navigator.pushNamed(context, '/orders/approval'),
+            onTap: () => Navigator.pushNamed(context, '/orders/review'),
           ),
         ),
       ),
@@ -855,6 +681,9 @@ class AdminApprovalSection extends ConsumerWidget {
     );
   }
 }
+
+// Page to list all work orders with status 'Review' for admin approval
+// WorkOrdersReviewPage and all references removed
 
 // Processing moved out of build
 List<(WorkOrder, DateTime?)> computeTodayRelevant(
@@ -2169,37 +1998,68 @@ class SettingsPage extends ConsumerWidget {
                 context: context,
                 showDragHandle: true,
                 builder: (context) {
-                  return SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const ListTile(
-                          title: Text(
-                            'Theme',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                  ThemeMode tempValue = mode;
+                  final groupController = GroupButtonController(
+                    selectedIndex: [
+                      ThemeMode.system,
+                      ThemeMode.light,
+                      ThemeMode.dark,
+                    ].indexOf(tempValue),
+                  );
+                  return StatefulBuilder(
+                    builder: (context, setState) {
+                      return SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ListTile(
+                              title: Text(
+                                'Theme',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            GroupButton<ThemeMode>(
+                              isRadio: true,
+                              buttons: const [
+                                ThemeMode.system,
+                                ThemeMode.light,
+                                ThemeMode.dark,
+                              ],
+                              controller: groupController,
+                              onSelected: (value, index, isSelected) {
+                                setState(() => tempValue = value);
+                              },
+                              buttonTextBuilder: (value, context, selected) {
+                                final mode = value as ThemeMode;
+                                switch (mode) {
+                                  case ThemeMode.system:
+                                    return 'System';
+                                  case ThemeMode.light:
+                                    return 'Light';
+                                  case ThemeMode.dark:
+                                    return 'Dark';
+                                }
+                              },
+                              options: const GroupButtonOptions(
+                                selectedColor: Colors.blue,
+                                unselectedColor: Colors.white,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(8),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    Navigator.pop(context, tempValue),
+                                child: const Text('Apply'),
+                              ),
+                            ),
+                          ],
                         ),
-                        RadioListTile<ThemeMode>(
-                          value: ThemeMode.system,
-                          groupValue: mode,
-                          title: const Text('System'),
-                          onChanged: (v) => Navigator.pop(context, v),
-                        ),
-                        RadioListTile<ThemeMode>(
-                          value: ThemeMode.light,
-                          groupValue: mode,
-                          title: const Text('Light'),
-                          onChanged: (v) => Navigator.pop(context, v),
-                        ),
-                        RadioListTile<ThemeMode>(
-                          value: ThemeMode.dark,
-                          groupValue: mode,
-                          title: const Text('Dark'),
-                          onChanged: (v) => Navigator.pop(context, v),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               );

@@ -5,12 +5,38 @@ class LocationInfo {
   final String id; // UUID primary key
   final String locationId; // human-readable code
   final String name;
-  LocationInfo({required this.id, required this.locationId, required this.name});
+  final String? block;
+  final String? floor;
+  final String? room;
+  final String? type;
+  final String? description;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  LocationInfo({
+    required this.id,
+    required this.locationId,
+    required this.name,
+    this.block,
+    this.floor,
+    this.room,
+    this.type,
+    this.description,
+    this.createdAt,
+    this.updatedAt,
+  });
 
   factory LocationInfo.fromMap(Map<String, dynamic> m) => LocationInfo(
         id: m['id'] as String,
         locationId: m['location_id'] as String,
         name: (m['name'] as String?) ?? '-',
+        block: m['block'] as String?,
+        floor: m['floor'] as String?,
+        room: m['room'] as String?,
+        type: m['type'] as String?,
+        description: m['description'] as String?,
+        createdAt: m['created_at'] != null ? DateTime.tryParse(m['created_at'].toString()) : null,
+        updatedAt: m['updated_at'] != null ? DateTime.tryParse(m['updated_at'].toString()) : null,
       );
 }
 
@@ -21,7 +47,7 @@ class LocationsRepository {
   Future<LocationInfo?> _fetch(String locationId) async {
     final res = await _client
         .from('locations')
-        .select('id, location_id, name')
+        .select('id, location_id, name, block, floor, room, type, description, created_at, updated_at')
         .eq('location_id', locationId)
         .maybeSingle();
     if (res == null) return null;
@@ -50,7 +76,7 @@ class LocationsRepository {
     if (id.isEmpty) return null;
     final res = await _client
         .from('locations')
-        .select('id, location_id, name')
+        .select('id, location_id, name, block, floor, room, type, description, created_at, updated_at')
         .eq('id', id)
         .maybeSingle();
     if (res == null) return null;

@@ -1,4 +1,3 @@
-import 'package:group_button/group_button.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 // import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,26 +32,9 @@ import 'features/orders/new_work_order_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/schedule/my_schedule_page.dart';
 import 'core/widgets/responsive_constraints.dart';
-import 'core/widgets/font_size_setting_tile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Font size options
-enum AppFontSize { small, medium, large }
-
-final fontSizeProvider = StateProvider<AppFontSize>(
-  (ref) => AppFontSize.medium,
-);
-
-double getFontScale(AppFontSize size) {
-  switch (size) {
-    case AppFontSize.small:
-      return 0.85;
-    case AppFontSize.medium:
-      return 1.0;
-    case AppFontSize.large:
-      return 1.18;
-  }
-}
 
 /// Reusable action buttons for work order approval/rejection
 // _WorkOrderActionButtons removed as it is no longer used
@@ -125,14 +107,11 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(themeModeProvider);
-    final fontSize = ref.watch(fontSizeProvider);
-    final fontScale = getFontScale(fontSize);
-    // Build text theme using Google Fonts util; change fonts as desired
-    final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
-    final scaledTextTheme = baseTextTheme.apply(fontSizeFactor: fontScale);
-    final appTextTheme = AppTypography.textTheme(scaledTextTheme);
-    final materialTheme = MaterialTheme(appTextTheme);
+  final mode = ref.watch(themeModeProvider);
+  // Build text theme using Google Fonts util; change fonts as desired
+  final baseTextTheme = createTextTheme(context, 'Inter', 'Inter');
+  final appTextTheme = AppTypography.textTheme(baseTextTheme);
+  final materialTheme = MaterialTheme(appTextTheme);
     return MaterialApp(
       title: 'MRA CMMS',
       theme: materialTheme.light(),
@@ -1999,13 +1978,6 @@ class SettingsPage extends ConsumerWidget {
                 showDragHandle: true,
                 builder: (context) {
                   ThemeMode tempValue = mode;
-                  final groupController = GroupButtonController(
-                    selectedIndex: [
-                      ThemeMode.system,
-                      ThemeMode.light,
-                      ThemeMode.dark,
-                    ].indexOf(tempValue),
-                  );
                   return StatefulBuilder(
                     builder: (context, setState) {
                       return SafeArea(
@@ -2018,41 +1990,28 @@ class SettingsPage extends ConsumerWidget {
                                 style: TextStyle(fontWeight: FontWeight.w600),
                               ),
                             ),
-                            GroupButton<ThemeMode>(
-                              isRadio: true,
-                              buttons: const [
-                                ThemeMode.system,
-                                ThemeMode.light,
-                                ThemeMode.dark,
-                              ],
-                              controller: groupController,
-                              onSelected: (value, index, isSelected) {
-                                setState(() => tempValue = value);
-                              },
-                              buttonTextBuilder: (value, context, selected) {
-                                final mode = value as ThemeMode;
-                                switch (mode) {
-                                  case ThemeMode.system:
-                                    return 'System';
-                                  case ThemeMode.light:
-                                    return 'Light';
-                                  case ThemeMode.dark:
-                                    return 'Dark';
-                                }
-                              },
-                              options: const GroupButtonOptions(
-                                selectedColor: Colors.blue,
-                                unselectedColor: Colors.white,
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(8),
-                                ),
-                              ),
+                            RadioListTile<ThemeMode>(
+                              title: const Text('System'),
+                              value: ThemeMode.system,
+                              groupValue: tempValue,
+                              onChanged: (val) => setState(() => tempValue = val!),
+                            ),
+                            RadioListTile<ThemeMode>(
+                              title: const Text('Light'),
+                              value: ThemeMode.light,
+                              groupValue: tempValue,
+                              onChanged: (val) => setState(() => tempValue = val!),
+                            ),
+                            RadioListTile<ThemeMode>(
+                              title: const Text('Dark'),
+                              value: ThemeMode.dark,
+                              groupValue: tempValue,
+                              onChanged: (val) => setState(() => tempValue = val!),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.pop(context, tempValue),
+                                onPressed: () => Navigator.pop(context, tempValue),
                                 child: const Text('Apply'),
                               ),
                             ),
@@ -2067,8 +2026,6 @@ class SettingsPage extends ConsumerWidget {
             },
           ),
 
-          // Font size setting
-          FontSizeSettingTile(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text(

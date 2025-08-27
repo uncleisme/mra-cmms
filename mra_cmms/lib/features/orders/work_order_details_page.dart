@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mra_cmms/models/work_order.dart';
 import 'package:mra_cmms/repositories/assets_repository.dart';
 import 'package:mra_cmms/repositories/locations_repository.dart';
+import 'package:mra_cmms/models/profile.dart';
+import 'package:mra_cmms/repositories/profiles_repository.dart';
+import 'package:mra_cmms/features/assets/asset_details_page.dart';
+import 'package:mra_cmms/features/locations/location_details_page.dart';
+import 'package:mra_cmms/repositories/work_orders_repository.dart';
 
 // ---- Section Widgets ----
 class _HeaderSection extends StatelessWidget {
@@ -301,63 +306,114 @@ class WorkOrderDetailsPage extends ConsumerStatefulWidget {
 }
 
 class _WorkOrderDetailsPageState extends ConsumerState<WorkOrderDetailsPage> {
+  final _repo = WorkOrdersRepository();
+  final _assetsRepo = AssetsRepository();
+  final _locationsRepo = LocationsRepository();
+  final _profilesRepo = ProfilesRepository();
+
   @override
   Widget build(BuildContext context) {
-    // Example: Use the fields and section widgets to build the full UI
-    return Scaffold(
-      appBar: AppBar(title: const Text('Work Order Details')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Example header section
-          _HeaderSection(
-            wo: WorkOrder(id: widget.id),
-            id: widget.id,
-          ),
-          const SizedBox(height: 16),
-          // Example key info section
-          _KeyInfoSection(
-            created: '2025-08-27',
-            due: '2025-09-01',
-            requesterName: 'John Doe',
-            assigneeName: 'Jane Smith',
-          ),
-          const SizedBox(height: 16),
-          // Example asset/location section
-          _AssetLocationSection(
-            asset: null,
-            location: null,
-            onTapAsset: null,
-            onTapLocation: null,
-          ),
-          const SizedBox(height: 16),
-          // Example description section
-          _DescriptionSection(text: 'Work order description goes here.'),
-          const SizedBox(height: 16),
-          // Example attachments section
-          _AttachmentsSection(attachmentUrls: const [], onPick: (_) async {}),
-          const SizedBox(height: 16),
-          // Example activity section
-          const _ActivitySection(),
-          const SizedBox(height: 16),
-          // Example completion section
-          _CompletionSection(
-            tasks: [
-              _TaskItem('Verify issue on site'),
-              _TaskItem('Perform repair/maintenance'),
-              _TaskItem('Test and validate fix'),
-              _TaskItem('Attach photos/evidence'),
-              _TaskItem('Add completion notes'),
-            ],
-            isLocked: false,
-            isDisabled: false,
-            status: 'open',
-            isAdmin: false,
-            onToggleTask: (i, v) {},
-            onSubmitReview: () async {},
-          ),
-        ],
-      ),
+    return FutureBuilder<WorkOrder?>(
+      future: _repo.getById(widget.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const Scaffold(
+            body: Center(child: Text('Work order not found.')),
+          );
+        }
+        final wo = snapshot.data!;
+        return FutureBuilder<AssetLocationProfiles>(
+          future: _fetchAssetLocationProfiles(wo),
+          builder: (context, dataSnap) {
+            final asset = dataSnap.data?.asset;
+            final location = dataSnap.data?.location;
+            final requester = dataSnap.data?.requester;
+            final assignee = dataSnap.data?.assignee;
+            return Scaffold(
+              appBar: AppBar(title: const Text('Work Order Details')),
+              body: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _HeaderSection(wo: wo, id: wo.id),
+                  const SizedBox(height: 16),
+                  _KeyInfoSection(
+                    created: wo.createdDate?.toIso8601String().split('T').first ?? '-',
+                    due: wo.dueDate?.toIso8601String().split('T').first ?? '-',
+                    requesterName: requester?.fullName ?? (wo.requestedBy ?? '-'),
+                    assigneeName: assignee?.fullName,
+                  ),
+                  const SizedBox(height: 16),
+                  _AssetLocationSection(
+                    asset: asset,
+                    location: location,
+                    onTapAsset: asset != null
+                        ? () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AssetDetailsPage(id: asset.id),
+                              ),
+                            );
+                          }
+                        : null,
+                    onTapLocation: location != null
+                        ? () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LocationDetailsPage(locationId: location.locationId),
+                              ),
+                            );
+                          }
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _DescriptionSection(text: wo.description ?? '-'),
+                  const SizedBox(height: 16),
+                  _AttachmentsSection(attachmentUrls: const [], onPick: (_) async {}),
+                  const SizedBox(height: 16),
+                  const _ActivitySection(),
+                  const SizedBox(height: 16),
+                  _CompletionSection(
+                    tasks: [
+                      _TaskItem('Verify issue on site'),
+                      _TaskItem('Perform repair/maintenance'),
+                      _TaskItem('Test and validate fix'),
+                      _TaskItem('Attach photos/evidence'),
+                      _TaskItem('Add completion notes'),
+                    ],
+                    isLocked: false,
+                    isDisabled: false,
+                    status: wo.status ?? '-',
+                    isAdmin: false,
+                    onToggleTask: (i, v) {},
+                    onSubmitReview: () async {},
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
+
+  Future<AssetLocationProfiles> _fetchAssetLocationProfiles(WorkOrder wo) async {
+    final asset = wo.assetId != null ? await _assetsRepo.getById(wo.assetId!) : null;
+    final location = wo.locationId != null ? await _locationsRepo.getById(wo.locationId!) : null;
+    final requester = wo.requestedBy != null ? await _profilesRepo.getById(wo.requestedBy!) : null;
+    final assignee = wo.assignedTo != null ? await _profilesRepo.getById(wo.assignedTo!) : null;
+    return AssetLocationProfiles(asset: asset, location: location, requester: requester, assignee: assignee);
+  }
+}
+
+class AssetLocationProfiles {
+  final AssetInfo? asset;
+  final LocationInfo? location;
+  final Profile? requester;
+  final Profile? assignee;
+  AssetLocationProfiles({this.asset, this.location, this.requester, this.assignee});
 }

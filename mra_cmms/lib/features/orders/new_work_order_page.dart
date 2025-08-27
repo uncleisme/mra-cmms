@@ -27,8 +27,9 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
   String? _selectedAssetId;
   String? _selectedLocationId;
 
-  // Step 4: Due Date
+  // Step 4: Due Date & Time
   DateTime? _dueDate;
+  TimeOfDay? _dueTime;
 
   // Step 5: Assignment & Priority
   String? _selectedAssigneeId; // technician
@@ -400,22 +401,51 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
           InkWell(
             onTap: () async {
               final now = DateTime.now();
-              final picked = await showDatePicker(
+              final pickedDate = await showDatePicker(
                 context: context,
                 initialDate: _dueDate ?? now,
                 firstDate: now.subtract(const Duration(days: 0)),
                 lastDate: now.add(const Duration(days: 365 * 2)),
               );
-              if (picked != null) setState(() => _dueDate = picked);
+              if (pickedDate != null) {
+                final pickedTime = await showTimePicker(
+                  context: context,
+                  initialTime: _dueTime ?? TimeOfDay.now(),
+                );
+                if (pickedTime != null) {
+                  setState(() {
+                    _dueDate = DateTime(
+                      pickedDate.year,
+                      pickedDate.month,
+                      pickedDate.day,
+                      pickedTime.hour,
+                      pickedTime.minute,
+                    );
+                    _dueTime = pickedTime;
+                  });
+                } else {
+                  // If user cancels time picker, just set the date with default time (noon)
+                  setState(() {
+                    _dueDate = DateTime(
+                      pickedDate.year,
+                      pickedDate.month,
+                      pickedDate.day,
+                      12,
+                      0,
+                    );
+                    _dueTime = null;
+                  });
+                }
+              }
             },
             child: InputDecorator(
               decoration: const InputDecoration(
-                labelText: 'Due date (optional)',
+                labelText: 'Due date & time (optional)',
               ),
               child: Text(
                 _dueDate == null
                     ? 'Not set'
-                    : _dueDate!.toString().split(' ').first,
+                    : '${_dueDate!.toLocal().toString().substring(0, 16).replaceFirst('T', ' ')}',
               ),
             ),
           ),

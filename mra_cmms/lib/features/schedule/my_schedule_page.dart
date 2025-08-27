@@ -45,11 +45,14 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage> with SingleTick
 
   List<WorkOrder> _filterToday(List<WorkOrder> items) {
     final now = DateTime.now();
-    return items.where((wo) {
+    final filtered = items.where((wo) {
       final d = _effectiveDate(wo);
       return d != null && _isSameDay(d, now);
     }).toList()
       ..sort((a, b) => _effectiveDate(a)!.compareTo(_effectiveDate(b)!));
+    debugPrint('Fetched work orders: \\n' + items.map((wo) => 'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}').join(', '));
+    debugPrint('Filtered today: ' + filtered.map((wo) => wo.id).join(', '));
+    return filtered;
   }
 
   List<WorkOrder> _filterWeek(List<WorkOrder> items) {

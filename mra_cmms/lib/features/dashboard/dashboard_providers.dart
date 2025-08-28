@@ -13,11 +13,6 @@ final _leavesRepoProvider = Provider((ref) => LeavesRepository());
 final _profilesRepoProvider = Provider((ref) => ProfilesRepository());
 final _notificationsRepoProvider = Provider((ref) => NotificationsRepository());
 
-final kpisProvider = FutureProvider<Map<String, int>>((ref) async {
-  final repo = ref.read(_workOrdersRepoProvider);
-  return repo.getKpis();
-});
-
 final todaysOrdersProvider = FutureProvider<List<WorkOrder>>((ref) async {
   final repo = ref.read(_workOrdersRepoProvider);
   return repo.getTodaysAssigned();
@@ -35,11 +30,12 @@ final todaysLeavesProvider = FutureProvider<List<LeaveRequest>>((ref) async {
 });
 
 /// Admin: pending leaves needing approval
-final pendingLeavesForApprovalProvider = FutureProvider<List<LeaveRequest>>((ref) async {
+final pendingLeavesForApprovalProvider = FutureProvider<List<LeaveRequest>>((
+  ref,
+) async {
   final repo = ref.read(_leavesRepoProvider);
   return repo.getPendingForApproval(limit: 100);
 });
-
 
 final myProfileProvider = FutureProvider<Profile?>((ref) async {
   final repo = ref.read(_profilesRepoProvider);
@@ -47,7 +43,9 @@ final myProfileProvider = FutureProvider<Profile?>((ref) async {
 });
 
 // Recent notifications for current user (RLS-aware via repository)
-final recentNotificationsProvider = FutureProvider<List<ActivityNotification>>((ref) async {
+final recentNotificationsProvider = FutureProvider<List<ActivityNotification>>((
+  ref,
+) async {
   final repo = ref.read(_notificationsRepoProvider);
   // Global feed so all users see the same recent updates
   return repo.getAll(limit: 20);
@@ -58,7 +56,8 @@ final recentNotificationsProvider = FutureProvider<List<ActivityNotification>>((
 // Per-user aggregation removed per request
 
 // General notifications provider (family) to mirror leaves/orders provider style
-final notificationsForCurrentUserProvider = FutureProvider.family<List<ActivityNotification>, int>((ref, limit) async {
-  final repo = ref.read(_notificationsRepoProvider);
-  return repo.getForCurrentUser(limit: limit);
-});
+final notificationsForCurrentUserProvider =
+    FutureProvider.family<List<ActivityNotification>, int>((ref, limit) async {
+      final repo = ref.read(_notificationsRepoProvider);
+      return repo.getForCurrentUser(limit: limit);
+    });

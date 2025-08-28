@@ -37,11 +37,11 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage>
 
   DateTime? _effectiveDate(WorkOrder wo) {
     final status = (wo.status ?? '').toLowerCase();
-    final due = wo.dueDate?.toLocal();
+    final appointment = wo.appointmentDate?.toLocal();
     final completed =
         status == 'completed' || status == 'done' || status == 'closed';
     final nextDate = wo.nextScheduledDate?.toLocal();
-    if (due != null) return due;
+    if (appointment != null) return appointment;
     if (completed && nextDate != null) return nextDate; // for PM follow-up
     return null;
   }
@@ -55,15 +55,9 @@ class _MySchedulePageState extends ConsumerState<MySchedulePage>
           }).toList()
           ..sort((a, b) => _effectiveDate(a)!.compareTo(_effectiveDate(b)!));
     debugPrint(
-      'Fetched work orders: \\n' +
-          items
-              .map(
-                (wo) =>
-                    'id: \\${wo.id}, due: \\${wo.dueDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}',
-              )
-              .join(', '),
+      'Fetched work orders: \\n${items.map((wo) => 'id: \\${wo.id}, appointment: \\${wo.appointmentDate}, next: \\${wo.nextScheduledDate}, status: \\${wo.status}').join(', ')}',
     );
-    debugPrint('Filtered today: ' + filtered.map((wo) => wo.id).join(', '));
+    debugPrint('Filtered today: ${filtered.map((wo) => wo.id).join(', ')}');
     return filtered;
   }
 
@@ -155,7 +149,8 @@ class _ScheduleList extends StatelessWidget {
         separatorBuilder: (_, index) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final wo = items[i];
-          final effective = wo.dueDate ?? wo.nextScheduledDate ?? wo.createdAt;
+          final effective =
+              wo.appointmentDate ?? wo.nextScheduledDate ?? wo.createdAt;
           return ListTile(
             key: ValueKey(wo.id),
             leading: const Icon(Icons.schedule),
@@ -173,7 +168,9 @@ class _ScheduleList extends StatelessWidget {
                 PriorityChip(wo.priority),
                 if (effective != null)
                   Text(
-                    _fmtShort(effective.toLocal()),
+                    wo.appointmentTime != null && wo.appointmentTime!.isNotEmpty
+                        ? '${_fmtShort(effective.toLocal()).split(' ')[0]} ${wo.appointmentTime!}'
+                        : _fmtShort(effective.toLocal()),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
               ],

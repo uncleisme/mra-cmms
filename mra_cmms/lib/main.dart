@@ -679,11 +679,11 @@ List<(WorkOrder, DateTime?)> computeTodayRelevant(
 
   DateTime? eff(WorkOrder wo) {
     final status = (wo.status ?? '').toLowerCase();
-    final dueToday = isToday(wo.dueDate);
+    final dueToday = isToday(wo.appointmentDate);
     final completed =
         status == 'completed' || status == 'done' || status == 'closed';
     final nextToday = completed && isToday(wo.nextScheduledDate);
-    if (dueToday) return wo.dueDate?.toLocal();
+    if (dueToday) return wo.appointmentDate?.toLocal();
     if (nextToday) return wo.nextScheduledDate?.toLocal();
     return null;
   }
@@ -790,7 +790,6 @@ class TodaysOrdersSection extends ConsumerWidget {
                           );
                           // Refresh dashboard providers to reflect any status changes
                           ref.invalidate(todaysOrdersProvider);
-                          ref.invalidate(kpisProvider);
                           ref.invalidate(recentNotificationsProvider);
                         },
                         icon: const Icon(Icons.play_arrow),
@@ -1204,7 +1203,7 @@ class _OrdersPageState extends State<OrdersPage> {
               }
               bool inRange(DateTime d) => !d.isBefore(start) && d.isBefore(end);
               items = items.where((wo) {
-                final due = wo.dueDate;
+                final due = wo.appointmentDate;
                 final next = wo.nextScheduledDate;
                 if (due != null && inRange(due)) return true;
                 if (next != null && inRange(next)) return true;
@@ -1245,8 +1244,8 @@ class _OrdersPageState extends State<OrdersPage> {
                   break;
                 case 'due':
                 default:
-                  final ad = a.dueDate;
-                  final bd = b.dueDate;
+                  final ad = a.appointmentDate;
+                  final bd = b.appointmentDate;
                   if (ad == null && bd == null) {
                     res = 0;
                   } else if (ad == null) {
@@ -1379,9 +1378,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                       style: TextStyle(fontSize: 12),
                                     ),
                                     Text(
-                                      wo.dueDate == null
+                                      wo.appointmentDate == null
                                           ? ''
-                                          : fmt(wo.dueDate!),
+                                          : fmt(wo.appointmentDate!),
                                     ),
                                     const SizedBox(height: 6),
                                     FilledButton.tonalIcon(

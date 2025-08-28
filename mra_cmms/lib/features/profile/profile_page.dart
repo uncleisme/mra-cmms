@@ -322,7 +322,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           context,
                           listen: false,
                         );
-                        container.invalidate(kpisProvider);
+                        // kpisProvider removed
                         container.invalidate(todaysOrdersProvider);
                         container.invalidate(pendingReviewsProvider);
                         container.invalidate(todaysLeavesProvider);

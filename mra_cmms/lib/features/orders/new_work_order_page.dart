@@ -27,9 +27,9 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
   String? _selectedAssetId;
   String? _selectedLocationId;
 
-  // Step 4: Due Date & Time
-  DateTime? _dueDate;
-  TimeOfDay? _dueTime;
+  // Step 4: Appointment Date & Time
+  DateTime? _appointmentDate;
+  String? _appointmentTime; // in HH:mm format
 
   // Step 5: Assignment & Priority
   String? _selectedAssigneeId; // technician
@@ -219,7 +219,8 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
       description: _descriptionCtrl.text.trim(),
       workType: _workType,
       priority: _priority,
-      dueDate: _dueDate,
+      appointmentDate: _appointmentDate,
+      appointmentTime: _appointmentTime,
       locationId: _selectedLocationId,
       assetId: _selectedAssetId,
       requestedBy: uid,
@@ -389,12 +390,12 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
         ],
       ),
 
-      // Step 4: Due Date
+      // Step 4: Appointment Date
       ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'Step 4: Due Date',
+            'Step 4: Appointment Date & Time',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -403,49 +404,45 @@ class _NewWorkOrderPageState extends ConsumerState<NewWorkOrderPage> {
               final now = DateTime.now();
               final pickedDate = await showDatePicker(
                 context: context,
-                initialDate: _dueDate ?? now,
+                initialDate: _appointmentDate ?? now,
                 firstDate: now.subtract(const Duration(days: 0)),
                 lastDate: now.add(const Duration(days: 365 * 2)),
               );
               if (pickedDate != null) {
                 final pickedTime = await showTimePicker(
                   context: context,
-                  initialTime: _dueTime ?? TimeOfDay.now(),
+                  initialTime: _appointmentTime != null
+                      ? TimeOfDay(
+                          hour: int.parse(_appointmentTime!.split(':')[0]),
+                          minute: int.parse(_appointmentTime!.split(':')[1]),
+                        )
+                      : TimeOfDay.fromDateTime(
+                          _appointmentDate ?? DateTime.now(),
+                        ),
                 );
-                if (pickedTime != null) {
-                  setState(() {
-                    _dueDate = DateTime(
-                      pickedDate.year,
-                      pickedDate.month,
-                      pickedDate.day,
-                      pickedTime.hour,
-                      pickedTime.minute,
-                    );
-                    _dueTime = pickedTime;
-                  });
-                } else {
-                  // If user cancels time picker, just set the date with default time (noon)
-                  setState(() {
-                    _dueDate = DateTime(
-                      pickedDate.year,
-                      pickedDate.month,
-                      pickedDate.day,
-                      12,
-                      0,
-                    );
-                    _dueTime = null;
-                  });
-                }
+                setState(() {
+                  _appointmentDate = DateTime(
+                    pickedDate.year,
+                    pickedDate.month,
+                    pickedDate.day,
+                  );
+                  if (pickedTime != null) {
+                    _appointmentTime =
+                        '${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}';
+                  } else {
+                    _appointmentTime = null;
+                  }
+                });
               }
             },
             child: InputDecorator(
               decoration: const InputDecoration(
-                labelText: 'Due date & time (optional)',
+                labelText: 'Appointment date & time (optional)',
               ),
               child: Text(
-                _dueDate == null
+                _appointmentDate == null
                     ? 'Not set'
-                    : '${_dueDate!.toLocal().toString().substring(0, 16).replaceFirst('T', ' ')}',
+                    : '${_appointmentDate!.toLocal().toString().split(' ')[0]}${_appointmentTime != null ? ' $_appointmentTime' : ''}',
               ),
             ),
           ),
